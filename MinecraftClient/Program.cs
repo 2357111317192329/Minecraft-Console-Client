@@ -624,8 +624,26 @@ namespace MinecraftClient
             {
                 ConsoleIO.WriteLineFormatted("§8" + Translations.mcc_offline, acceptnewlines: true);
                 result = ProtocolHandler.LoginResult.Success;
-                session.PlayerID = "0";
                 session.PlayerName = InternalConfig.Username;
+
+                // 與 Minecraft Wiki 計算器完全一致的離線 UUID v3 生成方式
+                string input = "OfflinePlayer:" + InternalConfig.Username;
+                
+                using var md5 = System.Security.Cryptography.MD5.Create();
+                byte[] hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
+
+                // 設定 Version 3 和 Variant（與 Wiki 完全相同）
+                hash[6] = (byte)((hash[6] & 0x0f) | 0x30);
+                hash[8] = (byte)((hash[8] & 0x3f) | 0x80);
+
+                // 關鍵：生成 32 位小寫字串（與 Wiki 的 Array.from + join 完全一致）
+                string uuidStr = BitConverter.ToString(hash)
+                    .Replace("-", "")
+                    .ToLowerInvariant();
+
+                session.PlayerID = uuidStr;   // 這裡存 32 位小寫無連字符格式
+
+                ConsoleIO.WriteLineFormatted($"§8[Offline] 使用離線UUID登入: {session.PlayerName} ({session.PlayerID})");
             }
             else
             {

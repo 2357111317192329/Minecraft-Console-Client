@@ -605,9 +605,13 @@ namespace MinecraftClient.Protocol
             {
                 return YggdrasiLogin(user, pass, out session);
             }
+            else if (type == LoginType.offline)   // ← 新增這一行
+            {
+                return OfflineLogin(user, out session);          // 使用我們新增的離線登入函數
+            }
             else
                 throw new InvalidOperationException(
-                    "Account type must be Mojang or Microsoft or valid authlib 3rd Servers!");
+                    "Account type must be Mojang or Microsoft or Yggdrasil or Offline!");
         }
 
         /// <summary>
@@ -864,6 +868,39 @@ namespace MinecraftClient.Protocol
                     ConsoleIO.WriteLineFormatted("§c" + e.StackTrace);
                 }
 
+                return LoginResult.OtherError;
+            }
+        }
+        private static LoginResult OfflineLogin(string username, out SessionToken session)
+        {
+            session = new SessionToken();
+
+            try
+            {
+                // 正確生成離線 UUID v3（與 Minecraft 官方完全一致）
+                string input = "OfflinePlayer:" + username;
+                byte[] hash = System.Security.Cryptography.MD5.Create().ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
+
+                // 設定版本為 3，Variant 為 RFC 4122
+                hash[6] &= 0x0f;
+                hash[6] |= 0x30;
+                hash[8] &= 0x3f;
+                hash[8] |= 0x80;
+
+                Guid offlineUUID = new Guid(hash);
+
+                session.PlayerName = username;
+                session.PlayerID = offlineUUID.ToString("N");   // 32 位小寫無連字符
+                session.ID = "offline";                         // 可自行設定
+                session.ClientID = Guid.NewGuid().ToString("N");
+
+                ConsoleIO.WriteLineFormatted($"§a[Offline] 使用離線UUID登入: {username} ({session.PlayerID})");
+
+                return LoginResult.Success;
+            }
+            catch (Exception ex)
+            {
+                ConsoleIO.WriteLineFormatted($"§c[Offline] 生成UUID失敗: {ex.Message}");
                 return LoginResult.OtherError;
             }
         }
