@@ -126,6 +126,7 @@ namespace MinecraftClient.Protocol.Handlers
         public Protocol18Handler(TcpClient Client, int protocolVersion, IMinecraftComHandler handler,
             ForgeInfo? forgeInfo, int rawProtocolVersion = 0)
         {
+            //System.Console.Out.WriteLine("USING Protocol18Handler");
             ConsoleIO.SetAutoCompleteEngine(this);
             ChatParser.InitTranslations();
             socketWrapper = new SocketWrapper(Client);
@@ -299,6 +300,8 @@ namespace MinecraftClient.Protocol.Handlers
                     while (elapsedMilliseconds >= nextUpdateDue)
                     {
                         handler.OnUpdate();
+                        //System.Console.Out.WriteLine("USING Protocol18Handler222");
+                        //Console.WriteLine("InfoEnabled = " + log.InfoEnabled);
                         nextUpdateDue += ClientTickIntervalMilliseconds;
                         elapsedMilliseconds = stopWatch.ElapsedMilliseconds;
                     }
@@ -423,10 +426,13 @@ namespace MinecraftClient.Protocol.Handlers
         /// <returns>TRUE if the packet was processed, FALSE if ignored or unknown</returns>
         internal bool HandlePacket(int packetId, Queue<byte> packetData)
         {
+            //System.Console.Out.WriteLine("RECV PACKET: " + packetId);
+            //System.Console.Out.Flush();
+            //Console.WriteLine("RECV: " + packetPalette.GetIncomingTypeById(packetId).ToString());
             // This copy is necessary because by the time we get to the catch block,
             // the packetData queue will have been processed and the data will be lost
             var _copy = packetData.ToArray();
-
+            //log.Error("Packet: " + packetID);
             try
             {
                 switch (currentState)
@@ -1016,6 +1022,7 @@ namespace MinecraftClient.Protocol.Handlers
                         ChatMessage chat = new(signedChat, true, messageType, senderUuid, unsignedChatContent,
                             senderDisplayName, senderTeamName, timestamp, messageSignature, verifyResult);
                         handler.OnTextReceived(chat);
+                        //System.Console.Out.WriteLine("USING Protocol18Handler");
                     }
                     else if (protocolVersion == MC_1_19_2_Version)
                     {
@@ -1809,14 +1816,18 @@ namespace MinecraftClient.Protocol.Handlers
                                 case 0:
                                     json = titleText;
                                     titleText = ChatParser.ParseText(dataTypes.ReadNextString(packetData));
+                                    //Console.WriteLine("[TITLE] " + titleText);
+                                    //log.Info("[TITLE] " + titleText);
                                     break;
                                 case 1:
                                     json = subtitleText;
                                     subtitleText = ChatParser.ParseText(dataTypes.ReadNextString(packetData));
+                                    //log.Info("[subtitle] " + subtitleText);
                                     break;
                                 case 2:
                                     json = actionBarText;
                                     actionBarText = ChatParser.ParseText(dataTypes.ReadNextString(packetData));
+                                    //Info("[actionBar] " + actionBarText);
                                     break;
                                 case 3:
                                     fadein = dataTypes.ReadNextInt(packetData);
@@ -3025,6 +3036,7 @@ namespace MinecraftClient.Protocol.Handlers
                     break;
                 case PacketTypesIn.ScoreboardObjective:
                     var objectiveName = dataTypes.ReadNextString(packetData);
+                    //log.Info("[SCOREBOARD]: "+objectiveName);
                     var mode = dataTypes.ReadNextByte(packetData);
 
                     var objectiveValue = string.Empty;
@@ -3068,6 +3080,7 @@ namespace MinecraftClient.Protocol.Handlers
                     if (protocolVersion >= MC_1_20_4_Version)
                     {
                         objectiveName3 = dataTypes.ReadNextString(packetData); // Objective Name
+                        //log.Info("§8[SCOREBOARD] ..."+objectiveName3);
                         objectiveValue2 = dataTypes.ReadNextVarInt(packetData); // Value
 
                         if (dataTypes.ReadNextBool(packetData)) // Has Display Name
@@ -3397,7 +3410,30 @@ namespace MinecraftClient.Protocol.Handlers
                 case PacketTypesIn.SelectAdvancementTab:
                     HandleSelectAdvancementTab(packetData);
                     break;
-
+                case PacketTypesIn.PlayerListHeaderAndFooter:
+                    //Console.WriteLine("=== PlayerListHeaderAndFooter RECEIVED ===");
+                    // 先直接 dump raw data
+                    //byte[] data0 = packetData.ToArray();
+                    //Console.WriteLine("Length = " + data0.Length);
+                    string header = dataTypes.ReadNextChat(packetData);
+                    //Console.WriteLine("HEADER: " + header);
+                    string footer = dataTypes.ReadNextChat(packetData);
+                    handler.UpdateQueueTotal(footer);
+                    //Console.WriteLine("FOOTER: " + footer);
+                    break;
+                case PacketTypesIn.SetTitleText:
+                    //Console.WriteLine("=== SetTitleText RECEIVED ===");
+                    //string TitleText = dataTypes.ReadNextChat(packetData);
+                    //Console.WriteLine("TitleText: " + TitleText);
+                    break;
+                case PacketTypesIn.SetTitleSubTitle:
+                    //Console.WriteLine("=== SetTitleSubTitle RECEIVED ===");
+                    // 先直接 dump raw data
+                    string SubTitle = dataTypes.ReadNextChat(packetData);
+                    handler.UpdateQueuePosition(SubTitle);
+                    //Console.WriteLine("SubTitle: " + SubTitle);
+                    //File.AppendAllText("headerfooter.bin", Convert.ToBase64String(data) + "\n");
+                    break;
                 default:
                     return false; //Ignored packet
             }

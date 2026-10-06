@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using System.Text;
+using System.Text.Json;
+using System.IO;
 using System.Threading;
 using Brigadier.NET;
 using Brigadier.NET.Exceptions;
@@ -83,7 +86,6 @@ namespace MinecraftClient
         public enum MovementType { Sneak, Walk, Sprint }
         private int sequenceId; // User for player block synchronization (Aka. digging, placing blocks, etc..)
         private bool CanSendMessage = false;
-
         private string host;
         private int port;
         private readonly int protocolversion;
@@ -104,7 +106,22 @@ namespace MinecraftClient
         private readonly Lock DigLock = new();
         private Tuple<Location, Direction>? LastDigPosition;
         private int RemainingDiggingTime = 0;
-
+        // queue data
+        public bool inQueue = true;
+        public int queuePosition = -1;
+        private int totalqueue = 0;
+        private int totalplayercount = 0;
+        private int ingameplayercount = 0;
+        private DateTime lastQueueUpdate=DateTime.Now;
+        private DateTime lastgetQueue=DateTime.Now;
+        private double avgSpeed = 0;
+        private const double alpha = 0.2;
+        public bool isinqueue() { return inQueue; }
+        public int GetqueuePosition() { return queuePosition; }
+        public int Gettotalqueue() { return totalqueue; }
+        public int Gettotalplayercount() { return totalplayercount; }
+        public int Getingameplayercount() { return ingameplayercount; }
+        public double GetAvgSpeed(){return avgSpeed;} 
         // player health and hunger
         private float playerHealth;
         private int playerFoodSaturation;
@@ -180,7 +197,6 @@ namespace MinecraftClient
             lock (teams)
                 return new Dictionary<string, PlayerTeam>(teams, StringComparer.Ordinal);
         }
-
         /// <summary>
         /// Get the team that contains the given player/entity name, or <c>null</c> if not found.
         /// </summary>
@@ -250,7 +266,6 @@ namespace MinecraftClient
         {
             CmdResult.currentHandler = this;
             instance = this;
-            
             terrainAndMovementsEnabled = Config.Main.Advanced.TerrainAndMovements;
             inventoryHandlingEnabled = Config.Main.Advanced.InventoryHandling;
             entityHandlingEnabled = Config.Main.Advanced.EntityHandling;
@@ -274,7 +289,6 @@ namespace MinecraftClient
             Log.ChatEnabled = Config.Logging.ChatMessages;
             Log.WarnEnabled = Config.Logging.WarningMessages;
             Log.ErrorEnabled = Config.Logging.ErrorMessages;
-
             // SENTRY: Send our client version and server version to Sentry
             SentrySdk.ConfigureScope(scope =>
             {
@@ -291,7 +305,6 @@ namespace MinecraftClient
                     MinecraftVersion = ProtocolHandler.ProtocolVersion2MCVer(protocolversion),
                     ForgeInfo = forgeInfo?.Version
                 };
-                
                 scope.Contexts["Client Configuration"] = new 
                 {
                     TerrainAndMovementsEnabled = terrainAndMovementsEnabled,
@@ -299,15 +312,13 @@ namespace MinecraftClient
                     EntityHandlingEnabled = entityHandlingEnabled
                 };
             });
-            
+            LoadStats();
             SentrySdk.StartSession();
             
             /* Load commands from Commands namespace */
             LoadCommands();
-
             if (botsOnHold.Count == 0)
                 RegisterBots();
-
             try
             {
                 client = ProxyHandler.NewTcpClient(host, port);
@@ -396,6 +407,28 @@ namespace MinecraftClient
 
                 throw new Exception("Initialization failed.");
             }
+        }
+        public void SaveStats()
+        {
+            var stats = new QueueStats
+            {
+                AvgSpeed = avgSpeed
+            };
+
+            string json = JsonSerializer.Serialize(stats);
+            File.WriteAllText("queue_stats.json", json);
+        }
+        public void LoadStats()
+        {
+            if (!File.Exists("queue_stats.json"))
+                return;
+
+            string json = File.ReadAllText("queue_stats.json");
+
+            var stats = JsonSerializer.Deserialize<QueueStats>(json);
+
+            if (stats != null)
+                avgSpeed = stats.AvgSpeed;
         }
         
         public void Transfer(string newHost, int newPort)
@@ -635,6 +668,14 @@ namespace MinecraftClient
         /// </summary>
         public void OnUpdate()
         {
+            if(GetGamemode()==2){
+                inQueue=true;
+            }
+            else if (GetGamemode()==0 && (DateTime.Now - lastgetQueue).TotalSeconds > 10){
+                inQueue=false;
+                queuePosition=-1;
+            }
+            //System.Console.Out.WriteLine("USING Protocol18Handler");
             foreach (ChatBot bot in bots.ToArray())
             {
                 try
@@ -3967,7 +4008,77 @@ namespace MinecraftClient
                 DispatchBotEvent(bot => bot.OnGamemodeUpdate(playerName, uuid, gamemode));
             }
         }
+        public string CleanText(string input)
+        {
+            input = Regex.Replace(input, @"§#?[0-9a-fA-F]{6}", "");
+            input = Regex.Replace(input, @"§.", "");
+            return input;
+        }
+        public void LogData(double newSpeed, int position)
+        {
+            string line = $"{DateTime.UtcNow:o},{position},{newSpeed}";
+            if (!File.Exists("queue_log.csv"))
+            {
+                File.WriteAllText("queue_log.csv", "time,position,speed\n");
+            }
+            File.AppendAllText("queue_log.csv", line + "\n");
+        }
+        public void UpdateAverageSpeed(double newSpeed, int position)
+        {
+            if (avgSpeed == 0)
+                avgSpeed = newSpeed;
+            else
+                avgSpeed = alpha * newSpeed + (1 - alpha) * avgSpeed;
+            SaveStats();
+            LogData(newSpeed, position);
+        }
+        public void UpdateQueuePosition(string subtitle)
+        {
+            //Log.Debug("Get Queue data");
+            string clean = CleanText(subtitle);
+            //Log.Debug(clean);
+            var match = Regex.Match(clean, @"(\d+)\s*正在游玩\s*\|\s*队列位置:\s*(\d+)");
+            if (match.Success)
+            {
+                //Log.Debug("match Success");
+                ingameplayercount = int.Parse(match.Groups[1].Value);
+                int tmpqueuePosition = int.Parse(match.Groups[2].Value);
+                inQueue = true;
+                if(queuePosition==-1){
+                    queuePosition=tmpqueuePosition;
+                }
+                if(tmpqueuePosition<queuePosition){
+                    int dp=queuePosition-tmpqueuePosition;
+                    double dt=(DateTime.Now-lastQueueUpdate).TotalSeconds;
+                    double speed = dp / dt;
+                    UpdateAverageSpeed(speed,queuePosition);
+                    queuePosition=tmpqueuePosition;
+                    lastQueueUpdate = DateTime.Now;
+                }
+                if(totalqueue<queuePosition) totalqueue=queuePosition;
+                if(totalplayercount<totalqueue) totalplayercount=totalqueue;
+                if(totalplayercount<(totalqueue+ingameplayercount)) totalplayercount=(totalqueue+ingameplayercount);
+                Log.Info("队列位置: " + queuePosition);
+            }
+        }
+        public void UpdateQueueTotal(string footer)
+        {
+            //Log.Debug("Get playercount data");
+            string clean = CleanText(footer);
 
+            var match = Regex.Match(clean, @"(\d+)\s+online players\s+\|\s+(\d+)\s+in queue");
+            if (match.Success)
+            {
+                int online = int.Parse(match.Groups[1].Value);
+                int queue = int.Parse(match.Groups[2].Value);
+                totalqueue=queue;
+                totalplayercount=online;
+                if(totalplayercount>=totalqueue){
+                    ingameplayercount=totalplayercount-totalqueue;
+                }
+                //Log.Info("totalplayercount: " + totalplayercount);
+            }
+        }
         /// <summary>
         /// Called when entities dead/despawn.
         /// </summary>
@@ -4138,6 +4249,7 @@ namespace MinecraftClient
         /// <param name="TimeOfDay"></param>
         public void OnTimeUpdate(long WorldAge, long TimeOfDay)
         {
+            
             // TimeUpdate sent every server tick hence used as timeout detect
             UpdateKeepAlive();
             // calculate server tps

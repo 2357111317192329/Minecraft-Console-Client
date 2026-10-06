@@ -252,7 +252,11 @@ namespace MinecraftClient.Protocol
         /// Called when entities have despawned
         /// </summary>
         /// <param name="EntityID">List of Entity ID that have despawned</param>
+        string CleanText(string input);
+        void UpdateQueuePosition(string subtitle);
+        void UpdateQueueTotal(string footer);
         void OnDestroyEntities(int[] EntityID);
+        
 
         /// <summary>
         /// Called when an entity moved by coordinate offset

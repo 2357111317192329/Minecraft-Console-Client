@@ -158,7 +158,7 @@ namespace MinecraftClient.Protocol
                 575, 578, 735, 736, 751, 753, 754, 755, 756, 757, 758, 759, 760, 761, 762, 763, 764, 765, 766, 767, 768,
                 769, 770, 771, 772, 773, 774, 775
             };
-
+            //Console.WriteLine("Handler type = " + typeof(Protocol18Handler).AssemblyQualifiedName);
             if (Array.IndexOf(suppoertedVersionsProtocol18, normalizedVersion) > -1)
                 return new Protocol18Handler(client, normalizedVersion, handler, forgeInfo, protocolVersion);
 
