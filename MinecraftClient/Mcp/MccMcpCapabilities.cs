@@ -1090,6 +1090,8 @@ public sealed class MccMcpCapabilities : IMccMcpCapabilities
                             typeLabel,
                             blockId = block.BlockId,
                             blockMeta = block.BlockMeta,
+                            stateId = block.StateId,
+                            properties = block.GetStateProperties(),
                             distance = Math.Sqrt(dx * dx + dy * dy + dz * dz)
                         });
                     }
@@ -1139,7 +1141,7 @@ public sealed class MccMcpCapabilities : IMccMcpCapabilities
             int cy = (int)Math.Floor(playerLocation.Y) - 1;
             int cz = (int)Math.Floor(playerLocation.Z);
 
-            List<(int x, int y, int z, string material, string typeLabel, int blockId, byte blockMeta, double distance)> found = new();
+            List<(int x, int y, int z, string material, string typeLabel, int blockId, byte blockMeta, int stateId, IReadOnlyDictionary<string, string> properties, double distance)> found = new();
             World world = client.GetWorld();
 
             for (int y = cy - radius; y <= cy + radius && found.Count < limit; y++)
@@ -1167,6 +1169,8 @@ public sealed class MccMcpCapabilities : IMccMcpCapabilities
                             block.GetTypeString(),
                             block.BlockId,
                             block.BlockMeta,
+                            block.StateId,
+                            block.GetStateProperties(),
                             Math.Sqrt(dx * dx + dy * dy + dz * dz)));
                     }
                 }
@@ -1190,6 +1194,8 @@ public sealed class MccMcpCapabilities : IMccMcpCapabilities
                         entry.typeLabel,
                         entry.blockId,
                         entry.blockMeta,
+                        entry.stateId,
+                        entry.properties,
                         entry.distance
                     })
                     .ToArray()
@@ -1392,18 +1398,18 @@ public sealed class MccMcpCapabilities : IMccMcpCapabilities
             bool success = client.SendLocationUpdate();
             return success
                 ? MccMcpResult.Ok(new
-            {
-                success,
-                direction = parsedDirection.ToString(),
-                yaw = client.GetYaw(),
-                pitch = client.GetPitch(),
-                location = ToCoordinate(current)
-            })
+                {
+                    success,
+                    direction = parsedDirection.ToString(),
+                    yaw = client.GetYaw(),
+                    pitch = client.GetPitch(),
+                    location = ToCoordinate(current)
+                })
                 : MccMcpResult.Fail("action_failed", data: new
-            {
-                success,
-                direction = parsedDirection.ToString()
-            });
+                {
+                    success,
+                    direction = parsedDirection.ToString()
+                });
         });
     }
 
@@ -1426,19 +1432,19 @@ public sealed class MccMcpCapabilities : IMccMcpCapabilities
             bool success = client.SendLocationUpdate();
             return success
                 ? MccMcpResult.Ok(new
-            {
-                success,
-                yaw = client.GetYaw(),
-                pitch = client.GetPitch(),
-                location = ToCoordinate(current)
-            })
+                {
+                    success,
+                    yaw = client.GetYaw(),
+                    pitch = client.GetPitch(),
+                    location = ToCoordinate(current)
+                })
                 : MccMcpResult.Fail("action_failed", data: new
-            {
-                success,
-                yaw,
-                pitch,
-                location = ToCoordinate(current)
-            });
+                {
+                    success,
+                    yaw,
+                    pitch,
+                    location = ToCoordinate(current)
+                });
         });
     }
 
@@ -1853,7 +1859,9 @@ public sealed class MccMcpCapabilities : IMccMcpCapabilities
                 z,
                 material = block.Type.ToString(),
                 blockId = block.BlockId,
-                blockMeta = block.BlockMeta
+                blockMeta = block.BlockMeta,
+                stateId = block.StateId,
+                properties = block.GetStateProperties()
             });
         });
     }
@@ -3121,7 +3129,9 @@ public sealed class MccMcpCapabilities : IMccMcpCapabilities
             material = block.Type.ToString(),
             typeLabel = block.GetTypeString(),
             blockId = block.BlockId,
-            blockMeta = block.BlockMeta
+            blockMeta = block.BlockMeta,
+            stateId = block.StateId,
+            properties = block.GetStateProperties()
         };
     }
 

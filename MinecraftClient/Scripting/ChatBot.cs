@@ -39,9 +39,20 @@ namespace MinecraftClient.Scripting
         //Handler will be automatically set on bot loading, don't worry about this
         public void SetHandler(McClient handler) { _handler = handler; }
         protected void SetMaster(ChatBot master) { this.master = master; }
-        protected void LoadBot(ChatBot bot) { Handler.BotUnLoad(bot); Handler.BotLoad(bot); }
+        protected void LoadBot(ChatBot bot)
+        {
+            if (ScriptOwnerKey is not null)
+                bot.SetScriptOwnerKey(ScriptOwnerKey);
+
+            if (Handler.GetLoadedChatBots().Any(loadedBot => ReferenceEquals(loadedBot, bot)))
+                Handler.BotUnLoad(bot);
+
+            Handler.BotLoad(bot);
+        }
         protected List<ChatBot> GetLoadedChatBots() { return Handler.GetLoadedChatBots(); }
         protected void UnLoadBot(ChatBot bot) { Handler.BotUnLoad(bot); }
+        internal string? ScriptOwnerKey { get; private set; }
+        internal void SetScriptOwnerKey(string? scriptOwnerKey) { ScriptOwnerKey = scriptOwnerKey; }
         private McClient? _handler = null;
         private ChatBot? master = null;
         private readonly List<string> registeredPluginChannels = new();
@@ -226,7 +237,8 @@ namespace MinecraftClient.Scripting
         /// <param name="pitch">Sound pitch</param>
         /// <param name="sourceEntity">Source entity for entity-sound packets when tracked</param>
         public virtual void OnSoundEffect(string? soundName, Location? location, int category, float volume, float pitch,
-            Entity? sourceEntity) { }
+            Entity? sourceEntity)
+        { }
 
         /// <summary>
         /// Called when an entity rotates
@@ -405,7 +417,8 @@ namespace MinecraftClient.Scripting
         /// <param name="players">Player/entity names. Present when method is 0, 3, or 4.</param>
         public virtual void OnTeam(string teamName, byte method, string displayName, byte friendlyFlags,
             string nameTagVisibility, string collisionRule, int color,
-            string prefix, string suffix, List<string> players) { }
+            string prefix, string suffix, List<string> players)
+        { }
 
         /// <summary>
         /// Called when the client received the Tab Header and Footer
@@ -413,7 +426,7 @@ namespace MinecraftClient.Scripting
         /// <param name="header">Header</param>
         /// <param name="footer">Footer</param>
         public virtual void OnTabListHeaderAndFooter(string header, string footer) { }
-        
+
         /// <summary>
         /// Called when an inventory/container was updated by server
         /// </summary>
@@ -1068,7 +1081,7 @@ namespace MinecraftClient.Scripting
         {
             Handler.BotLoad(chatBot);
         }
-        
+
         /// <summary>
         /// Set an App Variable
         /// </summary>
@@ -1079,7 +1092,7 @@ namespace MinecraftClient.Scripting
         {
             Config.AppVar.SetVar(name, value);
         }
-        
+
         /// <summary>
         /// Get a value from an App Variable
         /// </summary>
@@ -1089,7 +1102,7 @@ namespace MinecraftClient.Scripting
         {
             return Config.AppVar.GetVar(name);
         }
-        
+
         /// <summary>
         /// Replaces variables in text with their values from the App Var registry
         /// </summary>
@@ -1154,9 +1167,10 @@ namespace MinecraftClient.Scripting
         /// <param name="swingArms">Also perform the "arm swing" animation</param>
         /// <param name="lookAtBlock">Also look at the block before digging</param>
         /// <param name="duration">Dig duration in seconds. 0 = auto-compute for survival, or instant for creative</param>
-        protected bool DigBlock(Location location, Direction direction, bool swingArms = true, bool lookAtBlock = true, double duration = 0)
+        protected bool DigBlock(Location location, Direction direction, bool swingArms = true, bool lookAtBlock = true,
+            double duration = 0, MiningCalculator.MiningOptions? miningOptions = null)
         {
-            return Handler.DigBlock(location, direction, swingArms, lookAtBlock, duration);
+            return Handler.DigBlock(location, direction, swingArms, lookAtBlock, duration, miningOptions);
         }
 
         /// <summary>
@@ -1562,10 +1576,11 @@ namespace MinecraftClient.Scripting
         /// <param name="location">Location to place block to</param>
         /// <param name="blockFace">Block face (e.g. Direction.Down when clicking on the block below to place this block)</param>
         /// <param name="hand">Hand.MainHand or Hand.OffHand</param>
+        /// <param name="lookAtBlock">Also look at the block before interacting</param>
         /// <returns>TRUE if successfully placed</returns>
-        public bool SendPlaceBlock(Location location, Direction blockFace, Hand hand = Hand.MainHand)
+        public bool SendPlaceBlock(Location location, Direction blockFace, Hand hand = Hand.MainHand, bool lookAtBlock = false)
         {
-            return Handler.PlaceBlock(location, blockFace, hand);
+            return Handler.PlaceBlock(location, blockFace, hand, lookAtBlock);
         }
 
         /// <summary>

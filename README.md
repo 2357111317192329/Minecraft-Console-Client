@@ -20,6 +20,19 @@
 
 </div>
 
+> [!IMPORTANT]
+> ## 📢 Major News
+>
+> After 13 years of active development, we are rewriting MCC from the ground up to make development faster and enable powerful new features. The rewrite is currently being led by [@milutinke](https://github.com/milutinke). Along the refactoring, the client is being polished, the UX and UI are being improved, new features are being added and existing ones improved. ✨
+>
+> **Update (10.10.2026)** The early access build (No. 12) for the 2.0 client is available for download: [here](https://github.com/MCCTeam/Minecraft-Console-Client/releases/tag/v2.0.0-early-access.12)
+>
+> Please leave feedback on Discord.
+>
+> After the release of the Minecraft Console Client 2.0, the old client will remain available to use but will no longer be updated. The new client is expected for public testing in the coming weeks. 🚀
+>
+> Follow progress in [#🚀refactor-updates](https://discord.com/channels/1018553894831403028/1543210248439992461) on our [Discord server](https://discord.gg/sfBv4TtpC9)!
+
 ## **About ℹ️**
 
 **Minecraft Console Client (MCC)** is a lightweight cross-platform open-source Minecraft TUI client for **Java** edition that allows you to connect to any Minecraft Java server, send commands and receive text messages in a fast and easy way without having to open the main Minecraft game.
@@ -88,6 +101,12 @@ To improve translations for MCC, please visit: [Crowdin - Minecraft Console Clie
 Building from the source 🏗️
 
 This section has been moved to our new [Documentation website](https://mccteam.github.io/guide/installation.html#building-from-the-source-code).
+
+## Community projects 🧩
+
+Tools built by the community around MCC. They are not maintained by the MCC Team, report issues in their own trackers.
+
+- **[MCC GUI V2](https://github.com/AnonBOTpl/MCC-GUI-V2)** > Windows 11 desktop app that runs many accounts at once: one MCC process per connection, a tab with a live colored log for each account, and chat or commands sent to one account or to all of them. It does not bundle or modify MCC, it starts the `MinecraftClient.exe` you point it at, and it works with MCC 1.x. Free and open source (MIT).
 
 ## License ⚖️
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -62,6 +63,11 @@ namespace MinecraftClient
         public static bool EnableTimestamps = false;
 
         /// <summary>
+        /// Determine whether chat lines should be displayed in the console.
+        /// </summary>
+        public static bool ChatVisible = true;
+
+        /// <summary>
         /// Specify a generic log line prefix for WriteLogLine()
         /// </summary>
         public static string LogPrefix = "§8[MCC] ";
@@ -71,6 +77,22 @@ namespace MinecraftClient
         /// </summary>
         public static string? ReadPassword()
         {
+            if (ConsoleInputRouter.IsStarted)
+            {
+                if (BasicIO || Backend is null)
+                    return ConsoleInputRouter.ReadLine();
+
+                Backend.SetInputVisible(false);
+                try
+                {
+                    return ConsoleInputRouter.ReadLine();
+                }
+                finally
+                {
+                    Backend.SetInputVisible(true);
+                }
+            }
+
             if (BasicIO)
                 return Console.ReadLine();
             return Backend.ReadPassword();
@@ -81,6 +103,9 @@ namespace MinecraftClient
         /// </summary>
         public static string ReadLine()
         {
+            if (ConsoleInputRouter.IsStarted)
+                return ConsoleInputRouter.ReadLine();
+
             if (BasicIO)
                 return Console.ReadLine() ?? String.Empty;
             return Backend.RequestImmediateInput();
@@ -151,8 +176,20 @@ namespace MinecraftClient
                     return;
                 }
                 output.Append(str);
+                output.Append("§r");
                 Backend.WriteLineFormatted(output.ToString());
             }
+        }
+
+        /// <summary>
+        /// Write a formatted chat line to the console when chat output is enabled.
+        /// </summary>
+        public static void WriteChatLineIfVisible(string str, bool acceptnewlines = false, bool? displayTimestamp = null)
+        {
+            if (!ChatVisible)
+                return;
+
+            WriteLineFormatted(str, acceptnewlines, displayTimestamp);
         }
 
         /// <summary>
@@ -176,6 +213,32 @@ namespace MinecraftClient
         {
             if (BasicIO) return;
             Backend.ClearInputBuffer();
+        }
+
+        /// <summary>
+        /// Clear the visible console output.
+        /// </summary>
+        public static void ClearConsole()
+        {
+            if (BasicIO || Backend is null)
+            {
+                try
+                {
+                    Console.Clear();
+                }
+                catch (IOException ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(ex);
+                }
+                catch (PlatformNotSupportedException ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(ex);
+                }
+
+                return;
+            }
+
+            Backend.ClearScreen();
         }
 
         #endregion

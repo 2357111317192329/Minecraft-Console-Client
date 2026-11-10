@@ -411,6 +411,12 @@ namespace MinecraftClient.Protocol.Handlers
             return ReadNextNbt(cache, true);
         }
 
+        public object? ReadNextNbtTag(Queue<byte> cache)
+        {
+            var tagType = ReadNextByte(cache);
+            return tagType == 0 ? null : ReadNbtField(cache, tagType);
+        }
+
         /// <summary>
         /// Read an ItemStackTemplate (26.1+) from a cache of bytes.
         /// Unlike ItemStack, this uses item-first encoding: item_id, count, DataComponentPatch.
@@ -453,7 +459,7 @@ namespace MinecraftClient.Protocol.Handlers
             var nbt = null as Dictionary<string, object>;
             var item = null as Item;
             var strcturedComponentsToAdd = new List<StructuredComponent>();
-            
+
             switch (protocolversion)
             {
                 // MC 1.13.2 and greater
@@ -461,10 +467,10 @@ namespace MinecraftClient.Protocol.Handlers
                     itemCount = ReadNextVarInt(cache);
 
                     if (itemCount <= 0) return null;
-                    
+
                     itemId = ReadNextVarInt(cache);
                     item = new Item(itemPalette.FromId(itemId), itemCount, null);
-                        
+
                     var numberOfComponentsToAdd = ReadNextVarInt(cache);
                     var numberofComponentsToRemove = ReadNextVarInt(cache);
                     var structuredComponentHandler = new StructuredComponentsHandler(protocolversion, this, itemPalette);
@@ -500,55 +506,55 @@ namespace MinecraftClient.Protocol.Handlers
 
                     return item;
                 case >= Protocol18Handler.MC_1_13_2_Version:
-                {
-                    var itemPresent = ReadNextBool(cache);
+                    {
+                        var itemPresent = ReadNextBool(cache);
 
-                    if (!itemPresent)
-                        return null;
+                        if (!itemPresent)
+                            return null;
 
-                    itemId = ReadNextVarInt(cache);
+                        itemId = ReadNextVarInt(cache);
 
-                    if (itemId == -1)
-                        return null;
+                        if (itemId == -1)
+                            return null;
 
-                    var type = itemPalette.FromId(itemId); 
-                    itemCount = ReadNextByte(cache); 
-                    nbt = ReadNextNbt(cache);
-                    return new Item(type, itemCount, nbt);
-                }
+                        var type = itemPalette.FromId(itemId);
+                        itemCount = ReadNextByte(cache);
+                        nbt = ReadNextNbt(cache);
+                        return new Item(type, itemCount, itemId, nbt);
+                    }
                 case >= Protocol18Handler.MC_1_13_Version:
-                {
-                    itemId = ReadNextShort(cache);
+                    {
+                        itemId = ReadNextShort(cache);
 
-                    if (itemId == -1)
-                        return null;
+                        if (itemId == -1)
+                            return null;
 
-                    var type = itemPalette.FromId(itemId);
-                    itemCount = ReadNextByte(cache);
-                    nbt = ReadNextNbt(cache);
-                    return new Item(type, itemCount, nbt);
-                }
+                        var type = itemPalette.FromId(itemId);
+                        itemCount = ReadNextByte(cache);
+                        nbt = ReadNextNbt(cache);
+                        return new Item(type, itemCount, itemId, nbt);
+                    }
                 default:
-                {
-                    itemId = ReadNextShort(cache);
+                    {
+                        itemId = ReadNextShort(cache);
 
-                    if (itemId == -1)
-                        return null;
+                        if (itemId == -1)
+                            return null;
 
-                    itemCount = ReadNextByte(cache);
-                    var data = ReadNextShort(cache); 
-                    nbt = ReadNextNbt(cache);
+                        itemCount = ReadNextByte(cache);
+                        var data = ReadNextShort(cache);
+                        nbt = ReadNextNbt(cache);
 
-                    // For 1.8 - 1.12.2 we combine Item Id and Item Data/Damage to a single value using: (id << 16) | data
-                    return new Item(itemPalette.FromId((itemId << 16) | (ushort)data), itemCount, data, nbt);
-                }
+                        // For 1.8 - 1.12.2 we combine Item Id and Item Data/Damage to a single value using: (id << 16) | data
+                        return new Item(itemPalette.FromId((itemId << 16) | (ushort)data), itemCount, data, nbt);
+                    }
             }
         }
 
         private void ReadNextDetail(Queue<byte> cache)
         {
             var potionEffectId = ReadNextVarInt(cache);
-                                        
+
             // Details
             var potionEffectAmplifier = ReadNextVarInt(cache);
             var duration = ReadNextVarInt(cache); // -1 for infinite
@@ -1173,14 +1179,14 @@ namespace MinecraftClient.Protocol.Handlers
                     if (protocolversion >= Protocol18Handler.MC_1_20_6_Version)
                         ReadNextVarInt(cache); // BlockState (minecraft:block)
                     break;
-                    
+
                 case 2:
                     // 1.18
                     if (protocolversion > Protocol18Handler.MC_1_17_1_Version)
                         ReadNextVarInt(cache); // Block state (minecraft:block before 1.20.6, minecraft:block_marker in 1.20.6+)
                     break;
                 case 3:
-                    if (protocolversion is (< Protocol18Handler.MC_1_17_Version or > Protocol18Handler.MC_1_17_1_Version) 
+                    if (protocolversion is (< Protocol18Handler.MC_1_17_Version or > Protocol18Handler.MC_1_17_1_Version)
                         and < Protocol18Handler.MC_1_20_6_Version)
                         ReadNextVarInt(
                             cache); // Block State (minecraft:block before 1.18, minecraft:block_marker after 1.18 up to 1.20.6)
@@ -1340,7 +1346,7 @@ namespace MinecraftClient.Protocol.Handlers
                     break;
                 case 45:
                     // 1.21+
-                    if(protocolversion >= Protocol18Handler.MC_1_21_Version)
+                    if (protocolversion >= Protocol18Handler.MC_1_21_Version)
                         ReadVibration(cache);
                     break;
                 case 99:
@@ -1383,19 +1389,21 @@ namespace MinecraftClient.Protocol.Handlers
             ReadNextFloat(cache);    // Entity eye height
             ReadNextVarInt(cache);   // Ticks
         }
-        
+
         /// <summary>
         /// Read a single villager trade from a cache of bytes and remove it from the cache
         /// </summary>
         /// <returns>The item that was read or NULL for an empty slot</returns>
         public VillagerTrade ReadNextTrade(Queue<byte> cache, ItemPalette itemPalette)
         {
-            Item inputItem1 = ReadNextItemSlot(cache, itemPalette)!;
+            Item inputItem1 = ReadNextTradeCost(cache, itemPalette)!;
             Item outputItem = ReadNextItemSlot(cache, itemPalette)!;
 
             Item? inputItem2 = null;
 
-            if (protocolversion >= Protocol18Handler.MC_1_19_3_Version)
+            if (protocolversion >= Protocol18Handler.MC_1_20_6_Version)
+                inputItem2 = ReadNextOptionalTradeCost(cache, itemPalette);
+            else if (protocolversion >= Protocol18Handler.MC_1_19_3_Version)
                 inputItem2 = ReadNextItemSlot(cache, itemPalette);
             else
             {
@@ -1414,21 +1422,62 @@ namespace MinecraftClient.Protocol.Handlers
                 maximumNumberOfTradeUses, xp, specialPrice, priceMultiplier, demand);
         }
 
+        private Item? ReadNextTradeCost(Queue<byte> cache, ItemPalette itemPalette)
+        {
+            if (protocolversion < Protocol18Handler.MC_1_20_6_Version)
+                return ReadNextItemSlot(cache, itemPalette);
+
+            var itemId = ReadNextVarInt(cache);
+            var itemCount = ReadNextVarInt(cache);
+            var item = new Item(itemPalette.FromId(itemId), itemCount, null);
+            var componentCount = ReadNextVarInt(cache);
+
+            if (componentCount > 0)
+            {
+                var structuredComponentHandler = new StructuredComponentsHandler(protocolversion, this, itemPalette);
+                var components = new List<StructuredComponent>(componentCount);
+                for (var i = 0; i < componentCount; i++)
+                {
+                    var componentTypeId = ReadNextVarInt(cache);
+                    components.Add(structuredComponentHandler.Parse(componentTypeId, cache));
+                }
+
+                item.Components = components;
+            }
+
+            return item;
+        }
+
+        private Item? ReadNextOptionalTradeCost(Queue<byte> cache, ItemPalette itemPalette)
+        {
+            if (!ReadNextBool(cache))
+                return null;
+
+            return ReadNextTradeCost(cache, itemPalette);
+        }
+
         public string ReadNextChat(Queue<byte> cache)
         {
             if (protocolversion >= Protocol18Handler.MC_1_20_4_Version)
             {
-                // Read as NBT
-                var r = ReadNextNbt(cache);
-                var msg = ChatParser.ParseText(r);
-                return msg;
+                // Vanilla 1.20.4+ uses NBT here, but Hypixel exposed a JSON-string fallback on the same path.
+                Queue<byte> fallbackCache = new(cache);
+                try
+                {
+                    var r = ReadNextNbt(cache);
+                    return ChatParser.ParseText(r);
+                }
+                catch (System.IO.InvalidDataException)
+                {
+                    cache.Clear();
+                    foreach (var b in fallbackCache)
+                        cache.Enqueue(b);
+                }
             }
-            else
-            {
-                // Read as String
-                var json = ReadNextString(cache);
-                return ChatParser.ParseText(json);
-            }
+
+            // Read as String
+            var json = ReadNextString(cache);
+            return ChatParser.ParseText(json);
         }
 
         /// <summary>
@@ -1439,6 +1488,17 @@ namespace MinecraftClient.Protocol.Handlers
         public byte[] GetNbt(Dictionary<string, object>? nbt)
         {
             return GetNbt(nbt, true);
+        }
+
+        public byte[] GetNbtTag(object? tag)
+        {
+            if (tag is null)
+                return [0];
+
+            var tagData = GetNbtField(tag, out var tagType);
+            var data = new List<byte> { tagType };
+            data.AddRange(tagData);
+            return data.ToArray();
         }
 
         /// <summary>
@@ -1887,6 +1947,39 @@ namespace MinecraftClient.Protocol.Handlers
                     slotData.AddRange(GetShort((short)item.Data));
                     slotData.AddRange(GetNbt(item.NBT));
                 }
+            }
+
+            return slotData.ToArray();
+        }
+
+        /// <summary>
+        /// Get a byte array representing the given item as a non-empty ItemStackTemplate.
+        /// </summary>
+        /// <param name="item">Item</param>
+        /// <param name="itemPalette">Item Palette</param>
+        /// <returns>ItemStackTemplate representation</returns>
+        public byte[] GetItemStackTemplate(Item item, ItemPalette itemPalette)
+        {
+            List<byte> slotData = new();
+
+            slotData.AddRange(GetVarInt(itemPalette.ToId(item.Type)));
+            slotData.AddRange(GetVarInt(item.Count));
+
+            if (item.Components is not null && item.Components.Count > 0)
+            {
+                slotData.AddRange(GetVarInt(item.Components.Count));
+                slotData.AddRange(GetVarInt(0)); // components to remove
+                foreach (var component in item.Components)
+                {
+                    slotData.AddRange(GetVarInt(component.TypeId));
+                    var serialized = component.Serialize();
+                    slotData.AddRange(serialized);
+                }
+            }
+            else
+            {
+                slotData.AddRange(GetVarInt(0)); // no components to add
+                slotData.AddRange(GetVarInt(0)); // no components to remove
             }
 
             return slotData.ToArray();

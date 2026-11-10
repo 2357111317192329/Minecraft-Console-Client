@@ -1222,6 +1222,15 @@ namespace MinecraftClient {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {0} is only available in Minecraft {1} and newer!.
+        /// </summary>
+        internal static string bot_farmer_crop_unavailable {
+            get {
+                return ResourceManager.GetString("bot.farmer.crop_unavailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Farming bot.
         /// </summary>
         internal static string bot_farmer_desc {
@@ -1267,7 +1276,7 @@ namespace MinecraftClient {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Not implemented bellow 1.13!.
+        ///   Looks up a localized string similar to Not implemented below 1.8!.
         /// </summary>
         internal static string bot_farmer_not_implemented {
             get {
@@ -1769,6 +1778,51 @@ namespace MinecraftClient {
         internal static string bot_script_pm_loaded {
             get {
                 return ResourceManager.GetString("bot.script.pm.loaded", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error in {0} at line {1}, column {2}: [{3}] {4}.
+        /// </summary>
+        internal static string script_compile_error {
+            get {
+                return ResourceManager.GetString("script.compile.error", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error in {0}: [{1}] {2}.
+        /// </summary>
+        internal static string script_compile_error_no_location {
+            get {
+                return ResourceManager.GetString("script.compile.error_no_location", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to [Script] Compilation failed with error(s):.
+        /// </summary>
+        internal static string script_compile_failed {
+            get {
+                return ResourceManager.GetString("script.compile.failed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to [Script] Starting compilation for {0}....
+        /// </summary>
+        internal static string script_compile_started {
+            get {
+                return ResourceManager.GetString("script.compile.started", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to [Script] Compilation done with no errors..
+        /// </summary>
+        internal static string script_compile_succeeded {
+            get {
+                return ResourceManager.GetString("script.compile.succeeded", resourceCulture);
             }
         }
         
@@ -3016,6 +3070,42 @@ namespace MinecraftClient {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to clear the console output..
+        /// </summary>
+        internal static string cmd_clear_console_desc {
+            get {
+                return ResourceManager.GetString("cmd.clear_console.desc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to toggle chat visibility in the console..
+        /// </summary>
+        internal static string cmd_console_chat_desc {
+            get {
+                return ResourceManager.GetString("cmd.console_chat.desc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Console chat output is now hidden..
+        /// </summary>
+        internal static string cmd_console_chat_state_off {
+            get {
+                return ResourceManager.GetString("cmd.console_chat.state_off", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Console chat output is now visible..
+        /// </summary>
+        internal static string cmd_console_chat_state_on {
+            get {
+                return ResourceManager.GetString("cmd.console_chat.state_on", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to toggle debug messages..
         /// </summary>
         internal static string cmd_debug_desc {
@@ -4090,7 +4180,7 @@ namespace MinecraftClient {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Shift clicking slot {0} in window #{1}.
+        ///   Looks up a localized string similar to Shift.
         /// </summary>
         internal static string cmd_inventory_shiftclick {
             get {
@@ -4108,7 +4198,7 @@ namespace MinecraftClient {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Shift right-clicking slot {0} in window #{1}.
+        ///   Looks up a localized string similar to Shift right.
         /// </summary>
         internal static string cmd_inventory_shiftrightclick {
             get {
@@ -5908,6 +5998,24 @@ namespace MinecraftClient {
                 return ResourceManager.GetString("mcc.connecting", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select a login method: [1] Offline, [2] Online (Microsoft), [3] Yggdrasil.
+        /// </summary>
+        internal static string mcc_auth_method_prompt {
+            get {
+                return ResourceManager.GetString("mcc.auth_method_prompt", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Please choose 1, 2, or 3..
+        /// </summary>
+        internal static string mcc_auth_method_invalid {
+            get {
+                return ResourceManager.GetString("mcc.auth_method_invalid", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Tip: try TUI mode for a cleaner interface, mouse-friendly container actions, and a nicer layout. Run {0}feature tui§8 to switch [Console.General] ConsoleMode to &quot;tui&quot; for the next restart..
@@ -6179,6 +6287,114 @@ namespace MinecraftClient {
         internal static string mcc_password_hidden {
             get {
                 return ResourceManager.GetString("mcc.password_hidden", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Authlib server host:.
+        /// </summary>
+        internal static string mcc_yggdrasil_host {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_host", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Authlib server port [{0}]:.
+        /// </summary>
+        internal static string mcc_yggdrasil_port {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_port", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Authlib-Injector API path [{0}]:.
+        /// </summary>
+        internal static string mcc_yggdrasil_api_path {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_api_path", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Use HTTPS? [Y/n].
+        /// </summary>
+        internal static string mcc_yggdrasil_use_https {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_use_https", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The authlib server host cannot be empty..
+        /// </summary>
+        internal static string mcc_yggdrasil_invalid_host {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_invalid_host", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The authlib server port must be between 1 and 65535..
+        /// </summary>
+        internal static string mcc_yggdrasil_invalid_port {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_invalid_port", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Please answer yes or no..
+        /// </summary>
+        internal static string mcc_yggdrasil_invalid_yes_no {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_invalid_yes_no", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Authlib-injector URL:.
+        /// </summary>
+        internal static string mcc_yggdrasil_url {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_url", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The authlib-injector URL must be an absolute HTTP or HTTPS URL..
+        /// </summary>
+        internal static string mcc_yggdrasil_invalid_url {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_invalid_url", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not reach the authlib-injector server. Check the URL and try again..
+        /// </summary>
+        internal static string mcc_yggdrasil_server_unreachable {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_server_unreachable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The server did not return valid authlib-injector metadata. Check the URL and try again..
+        /// </summary>
+        internal static string mcc_yggdrasil_server_invalid {
+            get {
+                return ResourceManager.GetString("mcc.yggdrasil_server_invalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The configured authlib-injector URL must be an absolute HTTP or HTTPS URL..
+        /// </summary>
+        internal static string config_auth_server_url_invalid {
+            get {
+                return ResourceManager.GetString("config.auth_server_url_invalid", resourceCulture);
             }
         }
         
@@ -7552,5 +7768,537 @@ namespace MinecraftClient {
                 return ResourceManager.GetString("cmd.achievement.entry", resourceCulture);
             }
         }
+        internal static string cmd_book_usage {
+            get { return ResourceManager.GetString("cmd.book.usage", resourceCulture); }
+        }
+
+        internal static string cmd_book_desc {
+            get { return ResourceManager.GetString("cmd.book.desc", resourceCulture); }
+        }
+
+        internal static string cmd_book_help_read {
+            get { return ResourceManager.GetString("cmd.book.help_read", resourceCulture); }
+        }
+
+        internal static string cmd_book_help_write {
+            get { return ResourceManager.GetString("cmd.book.help_write", resourceCulture); }
+        }
+
+        internal static string cmd_book_help_edit {
+            get { return ResourceManager.GetString("cmd.book.help_edit", resourceCulture); }
+        }
+
+        internal static string cmd_book_help_sign {
+            get { return ResourceManager.GetString("cmd.book.help_sign", resourceCulture); }
+        }
+
+        internal static string cmd_book_not_holding_book {
+            get { return ResourceManager.GetString("cmd.book.not_holding_book", resourceCulture); }
+        }
+
+        internal static string cmd_book_not_holding_writable {
+            get { return ResourceManager.GetString("cmd.book.not_holding_writable", resourceCulture); }
+        }
+
+        internal static string cmd_book_already_signed {
+            get { return ResourceManager.GetString("cmd.book.already_signed", resourceCulture); }
+        }
+
+        internal static string cmd_book_cannot_edit_signed {
+            get { return ResourceManager.GetString("cmd.book.cannot_edit_signed", resourceCulture); }
+        }
+
+        internal static string cmd_book_tui_opened {
+            get { return ResourceManager.GetString("cmd.book.tui_opened", resourceCulture); }
+        }
+
+        internal static string cmd_book_tui_required {
+            get { return ResourceManager.GetString("cmd.book.tui_required", resourceCulture); }
+        }
+
+        internal static string cmd_book_write_sent {
+            get { return ResourceManager.GetString("cmd.book.write_sent", resourceCulture); }
+        }
+
+        internal static string cmd_book_edit_sent {
+            get { return ResourceManager.GetString("cmd.book.edit_sent", resourceCulture); }
+        }
+
+        internal static string cmd_book_sign_sent {
+            get { return ResourceManager.GetString("cmd.book.sign_sent", resourceCulture); }
+        }
+
+        internal static string cmd_book_write_failed {
+            get { return ResourceManager.GetString("cmd.book.write_failed", resourceCulture); }
+        }
+
+        internal static string cmd_book_file_not_found {
+            get { return ResourceManager.GetString("cmd.book.file_not_found", resourceCulture); }
+        }
+
+        internal static string cmd_book_page_out_of_range {
+            get { return ResourceManager.GetString("cmd.book.page_out_of_range", resourceCulture); }
+        }
+
+        internal static string cmd_book_too_many_pages {
+            get { return ResourceManager.GetString("cmd.book.too_many_pages", resourceCulture); }
+        }
+
+        internal static string cmd_book_page_too_long {
+            get { return ResourceManager.GetString("cmd.book.page_too_long", resourceCulture); }
+        }
+
+        internal static string cmd_book_title_invalid {
+            get { return ResourceManager.GetString("cmd.book.title_invalid", resourceCulture); }
+        }
+
+        internal static string cmd_book_header_signed {
+            get { return ResourceManager.GetString("cmd.book.header_signed", resourceCulture); }
+        }
+
+        internal static string cmd_book_header_writable {
+            get { return ResourceManager.GetString("cmd.book.header_writable", resourceCulture); }
+        }
+
+        internal static string cmd_book_page_header {
+            get { return ResourceManager.GetString("cmd.book.page_header", resourceCulture); }
+        }
+
+        internal static string tui_book_title_watermark {
+            get { return ResourceManager.GetString("tui.book.title_watermark", resourceCulture); }
+        }
+
+        internal static string tui_book_prev {
+            get { return ResourceManager.GetString("tui.book.prev", resourceCulture); }
+        }
+
+        internal static string tui_book_next {
+            get { return ResourceManager.GetString("tui.book.next", resourceCulture); }
+        }
+
+        internal static string tui_book_insert {
+            get { return ResourceManager.GetString("tui.book.insert", resourceCulture); }
+        }
+
+        internal static string tui_book_delete {
+            get { return ResourceManager.GetString("tui.book.delete", resourceCulture); }
+        }
+
+        internal static string tui_book_save {
+            get { return ResourceManager.GetString("tui.book.save", resourceCulture); }
+        }
+
+        internal static string tui_book_sign {
+            get { return ResourceManager.GetString("tui.book.sign", resourceCulture); }
+        }
+
+        internal static string tui_book_close {
+            get { return ResourceManager.GetString("tui.book.close", resourceCulture); }
+        }
+
+        internal static string tui_book_saved {
+            get { return ResourceManager.GetString("tui.book.saved", resourceCulture); }
+        }
+
+        internal static string tui_book_save_failed {
+            get { return ResourceManager.GetString("tui.book.save_failed", resourceCulture); }
+        }
+
+        internal static string tui_book_signed {
+            get { return ResourceManager.GetString("tui.book.signed", resourceCulture); }
+        }
+
+        internal static string tui_book_page_header {
+            get { return ResourceManager.GetString("tui.book.page_header", resourceCulture); }
+        }
+
+        internal static string tui_book_editing {
+            get { return ResourceManager.GetString("tui.book.editing", resourceCulture); }
+        }
+
+        internal static string tui_book_reading {
+            get { return ResourceManager.GetString("tui.book.reading", resourceCulture); }
+        }
+
+        internal static string tui_book_edit_shortcut_tip {
+            get { return ResourceManager.GetString("tui.book.edit_shortcut_tip", resourceCulture); }
+        }
+
+        internal static string tui_book_page_shortcut_tip {
+            get { return ResourceManager.GetString("tui.book.page_shortcut_tip", resourceCulture); }
+        }
+
+        internal static string debug_packet_incoming {
+            get { return ResourceManager.GetString("debug.packet.incoming", resourceCulture); }
+        }
+
+        internal static string debug_packet_outgoing {
+            get { return ResourceManager.GetString("debug.packet.outgoing", resourceCulture); }
+        }
+
+        internal static string debug_packet_state_change {
+            get { return ResourceManager.GetString("debug.packet.state_change", resourceCulture); }
+        }
+
+        internal static string debug_packet_unknown_type {
+            get { return ResourceManager.GetString("debug.packet.unknown_type", resourceCulture); }
+        }
+
+        internal static string debug_packet_compression_disabled {
+            get { return ResourceManager.GetString("debug.packet.compression.disabled", resourceCulture); }
+        }
+
+        internal static string debug_packet_compression_uncompressed {
+            get { return ResourceManager.GetString("debug.packet.compression.uncompressed", resourceCulture); }
+        }
+
+        internal static string debug_packet_compression_compressed {
+            get { return ResourceManager.GetString("debug.packet.compression.compressed", resourceCulture); }
+        }
+
+        internal static string debug_packet_loop_exit {
+            get { return ResourceManager.GetString("debug.packet.loop_exit", resourceCulture); }
+        }
+
+        internal static string debug_packet_loop_reason_queue_completed {
+            get { return ResourceManager.GetString("debug.packet.loop_reason.queue_completed", resourceCulture); }
+        }
+
+        internal static string debug_packet_loop_reason_socket_closed {
+            get { return ResourceManager.GetString("debug.packet.loop_reason.socket_closed", resourceCulture); }
+        }
+
+        internal static string debug_packet_loop_reason_cancelled {
+            get { return ResourceManager.GetString("debug.packet.loop_reason.cancelled", resourceCulture); }
+        }
+
+        internal static string cmd_dialog_usage {
+            get { return ResourceManager.GetString("cmd.dialog.usage", resourceCulture); }
+        }
+
+        internal static string cmd_dialog_desc {
+            get { return ResourceManager.GetString("cmd.dialog.desc", resourceCulture); }
+        }
+
+        internal static string dialog_received {
+            get { return ResourceManager.GetString("dialog.received", resourceCulture); }
+        }
+
+        internal static string dialog_cleared {
+            get { return ResourceManager.GetString("dialog.cleared", resourceCulture); }
+        }
+
+        internal static string dialog_none {
+            get { return ResourceManager.GetString("dialog.none", resourceCulture); }
+        }
+
+        internal static string dialog_dismissed {
+            get { return ResourceManager.GetString("dialog.dismissed", resourceCulture); }
+        }
+
+        internal static string dialog_unresolved_title {
+            get { return ResourceManager.GetString("dialog.unresolved_title", resourceCulture); }
+        }
+
+        internal static string dialog_unresolved_body {
+            get { return ResourceManager.GetString("dialog.unresolved_body", resourceCulture); }
+        }
+
+        internal static string dialog_unresolved_action_disabled {
+            get { return ResourceManager.GetString("dialog.unresolved_action_disabled", resourceCulture); }
+        }
+
+        internal static string dialog_input_unknown {
+            get { return ResourceManager.GetString("dialog.input_unknown", resourceCulture); }
+        }
+
+        internal static string dialog_input_set {
+            get { return ResourceManager.GetString("dialog.input_set", resourceCulture); }
+        }
+
+        internal static string dialog_input_too_long {
+            get { return ResourceManager.GetString("dialog.input_too_long", resourceCulture); }
+        }
+
+        internal static string dialog_input_boolean_invalid {
+            get { return ResourceManager.GetString("dialog.input_boolean_invalid", resourceCulture); }
+        }
+
+        internal static string dialog_input_option_invalid {
+            get { return ResourceManager.GetString("dialog.input_option_invalid", resourceCulture); }
+        }
+
+        internal static string dialog_input_number_invalid {
+            get { return ResourceManager.GetString("dialog.input_number_invalid", resourceCulture); }
+        }
+
+        internal static string dialog_input_number_range_invalid {
+            get { return ResourceManager.GetString("dialog.input_number_range_invalid", resourceCulture); }
+        }
+
+        internal static string dialog_action_unknown {
+            get { return ResourceManager.GetString("dialog.action_unknown", resourceCulture); }
+        }
+
+        internal static string dialog_action_label_unknown {
+            get { return ResourceManager.GetString("dialog.action_label_unknown", resourceCulture); }
+        }
+
+        internal static string dialog_action_label_ambiguous {
+            get { return ResourceManager.GetString("dialog.action_label_ambiguous", resourceCulture); }
+        }
+
+        internal static string dialog_cannot_cancel {
+            get { return ResourceManager.GetString("dialog.cannot_cancel", resourceCulture); }
+        }
+
+        internal static string dialog_action_closed {
+            get { return ResourceManager.GetString("dialog.action_closed", resourceCulture); }
+        }
+
+        internal static string dialog_action_command_not_in_play {
+            get { return ResourceManager.GetString("dialog.action_command_not_in_play", resourceCulture); }
+        }
+
+        internal static string dialog_action_invalid {
+            get { return ResourceManager.GetString("dialog.action_invalid", resourceCulture); }
+        }
+
+        internal static string dialog_action_custom_failed {
+            get { return ResourceManager.GetString("dialog.action_custom_failed", resourceCulture); }
+        }
+
+        internal static string dialog_action_command_sent {
+            get { return ResourceManager.GetString("dialog.action_command_sent", resourceCulture); }
+        }
+
+        internal static string dialog_action_custom_sent {
+            get { return ResourceManager.GetString("dialog.action_custom_sent", resourceCulture); }
+        }
+
+        internal static string dialog_action_nested_opened {
+            get { return ResourceManager.GetString("dialog.action_nested_opened", resourceCulture); }
+        }
+
+        internal static string dialog_action_open_url {
+            get { return ResourceManager.GetString("dialog.action_open_url", resourceCulture); }
+        }
+
+        internal static string dialog_action_suggest_command {
+            get { return ResourceManager.GetString("dialog.action_suggest_command", resourceCulture); }
+        }
+
+        internal static string dialog_action_copy {
+            get { return ResourceManager.GetString("dialog.action_copy", resourceCulture); }
+        }
+
+        internal static string dialog_action_unsupported {
+            get { return ResourceManager.GetString("dialog.action_unsupported", resourceCulture); }
+        }
+
+        internal static string dialog_tui_pending {
+            get { return ResourceManager.GetString("dialog.tui_pending", resourceCulture); }
+        }
+
+        internal static string dialog_tui_unavailable {
+            get { return ResourceManager.GetString("dialog.tui_unavailable", resourceCulture); }
+        }
+
+        internal static string dialog_tui_opened {
+            get { return ResourceManager.GetString("dialog.tui_opened", resourceCulture); }
+        }
+
+        internal static string dialog_action_unnamed {
+            get { return ResourceManager.GetString("dialog.action_unnamed", resourceCulture); }
+        }
+
+        internal static string dialog_action_ok {
+            get { return ResourceManager.GetString("dialog.action_ok", resourceCulture); }
+        }
+
+        internal static string dialog_item_body {
+            get { return ResourceManager.GetString("dialog.item_body", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_report_bug {
+            get { return ResourceManager.GetString("dialog.server_link.report_bug", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_community_guidelines {
+            get { return ResourceManager.GetString("dialog.server_link.community_guidelines", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_support {
+            get { return ResourceManager.GetString("dialog.server_link.support", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_status {
+            get { return ResourceManager.GetString("dialog.server_link.status", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_feedback {
+            get { return ResourceManager.GetString("dialog.server_link.feedback", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_community {
+            get { return ResourceManager.GetString("dialog.server_link.community", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_website {
+            get { return ResourceManager.GetString("dialog.server_link.website", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_forums {
+            get { return ResourceManager.GetString("dialog.server_link.forums", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_news {
+            get { return ResourceManager.GetString("dialog.server_link.news", resourceCulture); }
+        }
+
+        internal static string dialog_server_link_announcements {
+            get { return ResourceManager.GetString("dialog.server_link.announcements", resourceCulture); }
+        }
+
+        internal static string tui_dialog_cancel {
+            get { return ResourceManager.GetString("tui.dialog.cancel", resourceCulture); }
+        }
+
+        internal static string dialog_render_header {
+            get { return ResourceManager.GetString("dialog.render.header", resourceCulture); }
+        }
+
+        internal static string dialog_render_type {
+            get { return ResourceManager.GetString("dialog.render.type", resourceCulture); }
+        }
+
+        internal static string dialog_render_body {
+            get { return ResourceManager.GetString("dialog.render.body", resourceCulture); }
+        }
+
+        internal static string dialog_render_inputs {
+            get { return ResourceManager.GetString("dialog.render.inputs", resourceCulture); }
+        }
+
+        internal static string dialog_render_input {
+            get { return ResourceManager.GetString("dialog.render.input", resourceCulture); }
+        }
+
+        internal static string dialog_render_actions {
+            get { return ResourceManager.GetString("dialog.render.actions", resourceCulture); }
+        }
+
+        internal static string dialog_render_action {
+            get { return ResourceManager.GetString("dialog.render.action", resourceCulture); }
+        }
+
+        internal static string dialog_render_cancel_hint {
+            get { return ResourceManager.GetString("dialog.render.cancel_hint", resourceCulture); }
+        }
+
+        internal static string dialog_input_desc_text {
+            get { return ResourceManager.GetString("dialog.input_desc_text", resourceCulture); }
+        }
+
+        internal static string dialog_input_desc_boolean {
+            get { return ResourceManager.GetString("dialog.input_desc_boolean", resourceCulture); }
+        }
+
+        internal static string dialog_input_desc_options {
+            get { return ResourceManager.GetString("dialog.input_desc_options", resourceCulture); }
+        }
+
+        internal static string dialog_input_desc_number {
+            get { return ResourceManager.GetString("dialog.input_desc_number", resourceCulture); }
+        }
+
+        internal static string dialog_input_desc_unknown {
+            get { return ResourceManager.GetString("dialog.input_desc_unknown", resourceCulture); }
+        }
+
+        internal static string dialog_action_desc_close {
+            get { return ResourceManager.GetString("dialog.action_desc_close", resourceCulture); }
+        }
+
+        internal static string dialog_action_desc_command {
+            get { return ResourceManager.GetString("dialog.action_desc_command", resourceCulture); }
+        }
+
+        internal static string dialog_action_desc_custom {
+            get { return ResourceManager.GetString("dialog.action_desc_custom", resourceCulture); }
+        }
+
+        internal static string dialog_action_desc_show_dialog {
+            get { return ResourceManager.GetString("dialog.action_desc_show_dialog", resourceCulture); }
+        }
+
+        internal static string dialog_action_desc_open_url {
+            get { return ResourceManager.GetString("dialog.action_desc_open_url", resourceCulture); }
+        }
+
+        internal static string dialog_action_desc_suggest {
+            get { return ResourceManager.GetString("dialog.action_desc_suggest", resourceCulture); }
+        }
+
+        internal static string dialog_action_desc_copy {
+            get { return ResourceManager.GetString("dialog.action_desc_copy", resourceCulture); }
+        }
+
+        internal static string dialog_action_desc_unknown {
+            get { return ResourceManager.GetString("dialog.action_desc_unknown", resourceCulture); }
+        }
+
+        internal static string dialog_type_notice {
+            get { return ResourceManager.GetString("dialog.type.notice", resourceCulture); }
+        }
+
+        internal static string dialog_type_confirmation {
+            get { return ResourceManager.GetString("dialog.type.confirmation", resourceCulture); }
+        }
+
+        internal static string dialog_type_multi_action {
+            get { return ResourceManager.GetString("dialog.type.multi_action", resourceCulture); }
+        }
+
+        internal static string dialog_type_dialog_list {
+            get { return ResourceManager.GetString("dialog.type.dialog_list", resourceCulture); }
+        }
+
+        internal static string dialog_type_server_links {
+            get { return ResourceManager.GetString("dialog.type.server_links", resourceCulture); }
+        }
+
+        internal static string dialog_type_unknown {
+            get { return ResourceManager.GetString("dialog.type.unknown", resourceCulture); }
+        }
+
+        internal static string dialog_input_kind_text {
+            get { return ResourceManager.GetString("dialog.input_kind.text", resourceCulture); }
+        }
+
+        internal static string dialog_input_kind_boolean {
+            get { return ResourceManager.GetString("dialog.input_kind.boolean", resourceCulture); }
+        }
+
+        internal static string dialog_input_kind_options {
+            get { return ResourceManager.GetString("dialog.input_kind.options", resourceCulture); }
+        }
+
+        internal static string dialog_input_kind_number {
+            get { return ResourceManager.GetString("dialog.input_kind.number", resourceCulture); }
+        }
+
+        internal static string dialog_input_kind_unknown {
+            get { return ResourceManager.GetString("dialog.input_kind.unknown", resourceCulture); }
+        }
+
+        internal static string dialog_render_help_hint {
+            get { return ResourceManager.GetString("dialog.render.help_hint", resourceCulture); }
+        }
+
+        internal static string protocol_chat_raw_message {
+            get { return ResourceManager.GetString("protocol.chat.raw_message", resourceCulture); }
+        }
+
     }
 }

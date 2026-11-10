@@ -354,19 +354,19 @@ redirectFrom:
 
   - **Description:**
 
-    How long to wait between each attack in seconds.
+    Controls the delay between attacks. By default, MCC calculates this based on server TPS. Set `Custom` to `true` to specify your own values:
 
-    To enable it, set `Custom` (boolean) to `true` and change `value` (double) to your preferred value (eg. `1.5`).
+    - `Min` — minimum cooldown in seconds
+    - `Max` — maximum cooldown in seconds
+    - `RandomMode` — if enabled, picks a random cooldown between `Min` and `Max` for each attack
 
-    By default, this is disabled and MCC calculates it based on the server TPS.
-
-  - **Format:** `Cooldown_Time = { Custom = <is enabled (true|false)>, value = <seconds (double)> }`
+  - **Format:** `Cooldown_Time = { Custom = <true|false>, RandomMode = <true|false>, Min = <seconds>, Max = <seconds> }`
 
   - **Type:** `inline table`
 
-  - **Example:** `Cooldown_Time = { Custom = true, value = 1.5 }`
+  - **Example:** `Cooldown_Time = { Custom = true, RandomMode = true, Min = 1.0, Max = 2.0 }`
 
-  - **Default:** `{ Custom = false, value = 1.0 }`
+  - **Default:** `{ Custom = false, RandomMode = false, Min = 1.5, Max = 2.5 }`
 
   #### `Interaction`
 
@@ -762,6 +762,34 @@ redirectFrom:
   - **Type:** `boolean`
 
   - **Default:** `false`
+
+  #### `Apply_Efficiency_Enchantments`
+
+  - **Description:**
+
+    Include Efficiency enchantments when Auto Dig calculates how long it should wait before finishing a block break.
+
+    Disable this if a server's anti-cheat expects slower mining timing. This only changes MCC's timing calculation; it does not remove the enchantment from your tool.
+
+  - **Available values:** `true` and `false`
+
+  - **Type:** `boolean`
+
+  - **Default:** `true`
+
+  #### `Apply_Haste_Effects`
+
+  - **Description:**
+
+    Include Haste and Conduit Power effects when Auto Dig calculates how long it should wait before finishing a block break.
+
+    Disable this if a server's anti-cheat does not allow the faster timing. This only changes MCC's timing calculation; it does not remove the effect from your player.
+
+  - **Available values:** `true` and `false`
+
+  - **Type:** `boolean`
+
+  - **Default:** `true`
 
   #### `Durability_Limit`
 
@@ -1290,7 +1318,11 @@ redirectFrom:
 
 - **Description:**
 
-  Make MCC automatically relog when disconnected by the server, for example because the server is restating.
+  Make MCC reconnect after a network interruption or a matching server kick.
+
+  A lost TCP connection always triggers Auto Relog when the bot is enabled. `Kick_Messages` only filters server kick and login rejection messages. Logging out with an MCC command never triggers Auto Relog.
+
+  One logical disconnect or login rejection consumes one retry. `Ignore_Kick_Message` controls filtering, but it does not create additional restart decisions for the same failure.
 
 - **Settings:**
 
@@ -1315,9 +1347,11 @@ redirectFrom:
 
   - **Description:**
 
-    The delay time before joining the server.
+    The delay before the next connection attempt.
 
-    If the `min` and `max` are the same, the time will be consistent, however, if you want a random time, you can set `min` and `max` to different values to get a random time. The time format is in seconds, and the type is double. (eg. `37.0`)
+    If `min` and `max` are equal, every attempt uses that delay. Otherwise, MCC picks a random value in the range. Values are seconds and may include a fractional part, such as `0.5` or `37.0`.
+
+    For multi-process deployments, use a nonzero range such as `{ min = 3.0, max = 10.0 }` so clients do not reconnect in lockstep during maintenance. Equal values remain supported when a fixed interval is required.
 
   - **Format:** `{ min = <seconds (double)>, max = <seconds (double)> }`
 
@@ -1337,9 +1371,9 @@ redirectFrom:
 
   - **Description:**
 
-    Number of retries.
+    Number of connection attempts after a disconnect. `0` disables retries, and a positive value is used as an exact limit.
 
-    Use `-1` for infinite retries.
+    Use `-1` for unlimited retries. MCC resets the count after the connection has remained stable for 60 seconds. A restart request that MCC rejects as a duplicate does not consume an attempt.
 
   - **Default:** `-1`
 
@@ -1347,7 +1381,7 @@ redirectFrom:
 
   - **Description:**
 
-    This settings specifies if the `Kick_Messages` setting will be ignored, if set to `true` it will auto relog regardless of the kick messages.
+    Reconnect after any server kick or login rejection instead of checking `Kick_Messages`. This setting does not affect network interruptions, which always trigger Auto Relog.
 
   - **Type:** `boolean`
 
@@ -1357,7 +1391,7 @@ redirectFrom:
 
   - **Description:**
 
-    A list of words which should trigger the Auto Reconnect Chat Bot.
+    Text fragments that trigger Auto Relog for server kicks and login rejections. Matching is case-insensitive.
 
   - **Format:** `[ "<keyword>", "<keyword>", ... ]`
 
@@ -1957,7 +1991,7 @@ redirectFrom:
 
 <div class="custom-container warning"><p class="custom-container-title">Warning</p>
 
-**This a newly added bot, it is not perfect and was only tested in 1.19.2, there are some minor issues with it and you should treat it as an experimental bot.**
+**This bot is still experimental, has some known issues, and should be treated with extra caution on legacy versions.**
 
 </div>
 
@@ -1975,6 +2009,8 @@ redirectFrom:
   - Pumpkin
   - Potato
   - Wheat
+
+  Beetroot farming requires Minecraft `1.9+`.
 
   **Current list of issues:**
 
@@ -3062,11 +3098,13 @@ redirectFrom:
 
 - **Description:**
 
-  Enable recording of the game (`/replay start`) and replay it later using the Replay Mod (https://www.replaymod.com/).
+  Enable automatic recording of the game and replay it later using the Replay Mod (https://www.replaymod.com/).
+
+  Use `/replay save` to create a snapshot replay file while recording, and `/replay stop` to finalize the active recording.
 
   <div class="custom-container warning"><p class="custom-container-title">Warning</p>
 
-  **This bot does not work for 1.19, we need maintainers for it.**
+  **Use `/replay stop` or exit MCC gracefully with `/quit` so the replay file can be finalized cleanly.**
 
   </div>
 
@@ -3076,9 +3114,9 @@ redirectFrom:
 
   </div>
 
-  <div class="custom-container warning"><p class="custom-container-title">Warning</p>
+  <div class="custom-container note"><p class="custom-container-title">Note</p>
 
-  **You SHOULD use `/replay stop` or exit the program gracefully with `/quit` OR THE REPLAY FILE MAY GET CORRUPT!**
+  **Each MCC instance uses its own temporary replay cache, so multiple MCC clients can record from the same folder without overwriting each other.**
 
   </div>
 
@@ -3428,7 +3466,7 @@ redirectFrom:
 
   </div>
 
-  - **Available values:** [Item Type List](https://raw.githubusercontent.com/MCCTeam/Minecraft-Console-Client/master/MinecraftClient/Inventory/ItemType.cs)
+  - **Available values:** [Item Type List](https://github.com/MCCTeam/Minecraft-Console-Client/blob/master/MinecraftClient/Inventory/ItemType.cs)
 
   - **Type:** `array of strings with item names`
 

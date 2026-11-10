@@ -268,6 +268,119 @@ In scripts and remote control, no slash is needed to perform the command, eg. `q
 </details>
 
 <details>
+<summary><code>book</code></summary>
+
+<div class="custom-container note"><p class="custom-container-title">Note</p>
+
+**You need to have [Inventory Handling](configuration.md#inventoryhandling) enabled in order for this to work.**
+
+</div>
+
+- **Description:**
+
+  Read the book in your main hand, or edit it if it is a writable book.
+
+  In TUI mode, `/book read` opens a page viewer instead of printing the whole book to chat. The same viewer also opens automatically when the server tells the client to open a book.
+
+  If you are holding a writable book, you can replace all pages, update one page, insert a page, delete a page, and sign the finished book.
+
+- **Usage:**
+
+  Read the current book or a single page:
+
+  ```
+  /book read [page]
+  ```
+
+  Replace the whole writable book from inline text or a file:
+
+  ```
+  /book write text <text>
+  /book write file <path>
+  ```
+
+  Open the TUI editor or edit specific pages from the command line:
+
+  ```
+  /book edit
+  /book edit page <page> <text>
+  /book edit insert <page> <text>
+  /book edit delete <page>
+  ```
+
+  Sign the writable book in your main hand:
+
+  ```
+  /book sign <title>
+  ```
+
+- **Notes:**
+
+  `read` works with a writable book or a written book in your main hand.
+
+  `write`, `edit`, and `sign` require a writable book in your main hand.
+
+  Use `\n` for line breaks and `\f` for page breaks when passing inline text.
+
+  MCC checks page count, page length, and title length against the current protocol before sending the packet.
+
+  The interactive editor is only available in TUI mode.
+
+  In the TUI book view, `PageUp`/`PageDown` switches pages.
+
+- **Examples:**
+
+  Read the held book:
+
+  ```
+  /book read
+  ```
+
+  Show only page 2:
+
+  ```
+  /book read 2
+  ```
+
+  Write two pages from the command line:
+
+  ```
+  /book write text First page\nSecond line\fSecond page
+  ```
+
+  Load the book text from a file:
+
+  ```
+  /book write file ./letter.txt
+  ```
+
+  Replace page 3:
+
+  ```
+  /book edit page 3 Updated text for page three
+  ```
+
+  Insert a new page before page 2:
+
+  ```
+  /book edit insert 2 This page goes before the old page 2
+  ```
+
+  Delete page 4:
+
+  ```
+  /book edit delete 4
+  ```
+
+  Sign the current writable book:
+
+  ```
+  /book sign Meeting Notes
+  ```
+
+</details>
+
+<details>
 <summary><code>bed</code></summary>
 
 - **Description:**
@@ -770,6 +883,24 @@ In scripts and remote control, no slash is needed to perform the command, eg. `q
 </details>
 
 <details>
+<summary><code>clear-console</code></summary>
+
+- **Description:**
+
+  Clear the visible console output.
+
+  In TUI mode this clears the log panel. In the classic console it clears the terminal screen.
+
+- **Usage:**
+
+  ```
+  /clear-console
+  /cc
+  ```
+
+</details>
+
+<details>
 <summary><code>connect</code></summary>
 
 - **Description:**
@@ -1016,7 +1147,7 @@ In scripts and remote control, no slash is needed to perform the command, eg. `q
 
   <div class="custom-container warning"><p class="custom-container-title">Warning</p>
 
-  **The [Inventory Handling](configuration.md#inventoryhandling) is currently not supported in `1.4.6 - 1.9`**
+  **The [Inventory Handling](configuration.md#inventoryhandling) is currently supported on `1.8+` and is unavailable on `1.4.6 - 1.7.10`.**
 
   </div>
 
@@ -1026,10 +1157,22 @@ In scripts and remote control, no slash is needed to perform the command, eg. `q
   /useitem
   ```
 
+  Use the item from a specific hand:
+
+  ```
+  /useitem <mainhand|offhand>
+  ```
+
   Use the item on a specific block:
 
   ```
   /useitem <x> <y> <z>
+  ```
+
+  Use the item from a specific hand on a specific block:
+
+  ```
+  /useitem <x> <y> <z> <mainhand|offhand>
   ```
 
 </details>
@@ -1063,7 +1206,7 @@ In scripts and remote control, no slash is needed to perform the command, eg. `q
 
   <div class="custom-container warning"><p class="custom-container-title">Warning</p>
 
-  **The [Inventory Handling](configuration.md#inventoryhandling) is currently not supported in `1.4.6 - 1.9`.**
+  **The [Inventory Handling](configuration.md#inventoryhandling) is currently supported on `1.8+` and is unavailable on `1.4.6 - 1.7.10`.**
 
   </div>
 
@@ -1298,7 +1441,7 @@ In scripts and remote control, no slash is needed to perform the command, eg. `q
 
   <div class="custom-container warning"><p class="custom-container-title">Warning</p>
 
-  **The [Inventory Handling](configuration.md#inventoryhandling) is currently not supported in `1.4.6 - 1.9`.**
+  **The [Inventory Handling](configuration.md#inventoryhandling) is currently supported on `1.8+` and is unavailable on `1.4.6 - 1.7.10`.**
 
   </div>
 
@@ -1468,6 +1611,153 @@ In scripts and remote control, no slash is needed to perform the command, eg. `q
   ```
   /inventory s SlimeBlock 10
   ```
+
+</details>
+
+<details>
+<summary><code>console-chat</code></summary>
+
+- **Description:**
+
+  Temporarily show or hide chat in the console.
+
+  This changes the current session only. If you want the same behavior every time MCC starts, use [`Console.General.Display_Chat`](configuration.md#display_chat).
+
+- **Usage:**
+
+  ```
+  /console-chat
+  /console-chat on
+  /console-chat off
+  ```
+
+- **Examples:**
+
+  Hide chat until you turn it back on:
+
+  ```
+  /console-chat off
+  ```
+
+  Show chat again:
+
+  ```
+  /console-chat on
+  ```
+
+</details>
+
+<details>
+<summary><code>dialog</code></summary>
+
+- **Description:**
+
+  Browse and interact with dialogs sent by the server. Dialogs are popups with a title, body text, and buttons. TUI mode gives the best experience -- use `/dialog open` to view the dialog in a full-screen overlay.
+
+  When a server shows a dialog, MCC prints:
+
+  ```
+  [MCC] Server showed custom dialog: Server Notice. Use dialog show.
+  ```
+
+  Run `/dialog show` to see the full dialog. Buttons show up like this:
+
+  ```
+  Actions:
+    [1] OK (close)
+    [2] Visit (command)
+    [3] Rules (show dialog)
+  ```
+
+  The text in parentheses tells you what the button does: `(close)` closes the dialog, `(command)` sends a chat command, `(show dialog)` opens another dialog.
+
+- **Dialog types:**
+
+  Dialogs come in a few shapes. You might see these in the output of `/dialog show`:
+
+  **Notice** -- A popup with a title, optional body, and one button.
+
+  ```
+  Type: Notice
+
+  Welcome to the server!
+
+  Body: Read the rules before playing.
+
+  Actions:
+    [1] OK (close)
+  ```
+
+  **Confirmation** -- A choice between two buttons.
+
+  ```
+  Type: Confirmation
+
+  Reset your progress?
+
+  Actions:
+    [1] Yes (close)
+    [2] No (close)
+  ```
+
+  **Multi-action** -- A grid of buttons.
+
+  ```
+  Type: Multi-action
+
+  Choose a destination
+
+  Actions:
+    [1] Spawn (close)
+    [2] Shop (close)
+    [3] Arena (close)
+  ```
+
+  **Dialog list** -- A list of sub-dialogs. Clicking one opens another dialog.
+
+  ```
+  Type: Dialog list
+
+  Help Topics
+
+  Actions:
+    [1] Rules (show dialog)
+    [2] Commands (show dialog)
+  ```
+
+  **Server links** -- Shows the server's configured links as buttons. May be empty.
+
+  ```
+  Type: Server links
+
+  Server Links
+  ```
+
+- **Usage:**
+
+  ```
+  /dialog
+  /dialog show
+  /dialog open
+  /dialog click <index>
+  /dialog click-label <label>
+  /dialog set <input> <value>
+  /dialog input <input> <value>
+  /dialog cancel
+  /dialog dismiss
+  ```
+
+- **Examples:**
+
+  ```
+  /dialog show
+  /dialog click 1
+  /dialog click-label Teleport
+  /dialog set name MyPlayer
+  /dialog dismiss
+  ```
+
+  See what dialog is currently shown, click the first button, click a button by its text, fill in an input, or close the dialog.
 
 </details>
 
