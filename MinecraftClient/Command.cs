@@ -19,12 +19,10 @@ namespace MinecraftClient
         /// The command name
         /// </summary>
         public abstract string CmdName { get; }
-
         /// <summary>
         /// Command description with translation support. Please add your message in Translations.cs file and return mapping key in this property
         /// </summary>
         public abstract string CmdDesc { get; }
-
         /// <summary>
         /// Get the translated version of command description.
         /// </summary>
@@ -32,24 +30,20 @@ namespace MinecraftClient
         public string GetCmdDescTranslated()
         {
             char cmdChar = Settings.Config.Main.Advanced.InternalCmdChar.ToChar();
-
             StringBuilder sb = new();
             string s = (string.IsNullOrEmpty(CmdUsage) || string.IsNullOrEmpty(CmdDesc)) ? string.Empty : ": "; // If either one is empty, no colon :
             sb.Append("§e").Append(cmdChar).Append(CmdUsage).Append("§r").Append(s).AppendLine(CmdDesc);
             sb.Append(McClient.dispatcher.GetAllUsageString(CmdName, false));
             return sb.ToString();
         }
-
         /// <summary>
         /// Usage message, eg: 'name [args]'
         /// </summary>
         public abstract string CmdUsage { get; }
-
         /// <summary>
         /// Register the command.
         /// </summary>
         public abstract void RegisterCommand(CommandDispatcher<CmdResult> dispatcher);
-
         /// <summary>
         /// Check if at least one argument has been passed to the command
         /// </summary>
@@ -58,7 +52,6 @@ namespace MinecraftClient
             int first_space = command.IndexOf(' ');
             return (first_space > 0 && first_space < command.Length - 1);
         }
-
         /// <summary>
         /// Extract the argument string from the command
         /// </summary>
@@ -70,7 +63,6 @@ namespace MinecraftClient
             else
                 return string.Empty;
         }
-
         /// <summary>
         /// Extract the arguments as a string array from the command
         /// </summary>
@@ -83,7 +75,6 @@ namespace MinecraftClient
             else
                 return args;
         }
-
         /// <summary>
         /// Extract arguments from a given string. Allows quotines and escaping them. 
         /// Similar to command line arguments in regular terminals.
@@ -94,10 +85,8 @@ namespace MinecraftClient
         {
             var args = new List<string>();
             if (string.IsNullOrWhiteSpace(cmdLine)) return args;
-
             var currentArg = new StringBuilder();
             bool inQuotedArg = false;
-
             for (int i = 0; i < cmdLine.Length; i++)
             {
                 if ((cmdLine[i] == '"' && i > 0 && cmdLine[i - 1] != '\\') || (cmdLine[i] == '"' && i == 0))
@@ -138,9 +127,7 @@ namespace MinecraftClient
                     }
                 }
             }
-
             if (currentArg.Length > 0) args.Add(currentArg.ToString());
-
             return args;
         }
     }

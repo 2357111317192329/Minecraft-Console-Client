@@ -836,7 +836,7 @@ namespace MinecraftClient
                         return true;
                     }
 
-                    public enum LoginType { mojang, microsoft, yggdrasil };
+                    public enum LoginType { mojang, microsoft,yggdrasil,offline};
 
                     public enum LoginMethod { mcc, browser };
                 }

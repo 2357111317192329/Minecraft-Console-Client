@@ -1,3 +1,21 @@
+# 忽略編譯後的執行檔
+publish-single/MinecraftClient
+publish-linux/MinecraftClient
+publish-win/MinecraftClient.exe
+
+# 忽略所有可能的發行資料夾
+publish-*/
+publish/
+
+# 忽略其他常見的編譯輸出
+*.exe
+*.app
+*.dmg
+bin/
+obj/
+out/
+build/
+dist/
 /DebugTools/MinecraftClientProxy.suo
 /DebugTools/MinecraftClientProxy.v11.suo
 /MinecraftClient.v11.suo

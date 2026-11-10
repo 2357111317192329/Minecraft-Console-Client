@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Target Name="ListFiles" BeforeTargets="CoreCompile">
+    <Message Text="Compiling: @(Compile)" Importance="High"/>
+  </Target>
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>

@@ -89,7 +89,6 @@ namespace MinecraftClient
         public enum MovementType { Sneak, Walk, Sprint }
         private int sequenceId; // User for player block synchronization (Aka. digging, placing blocks, etc..)
         private bool CanSendMessage = false;
-
         private string host;
         private int port;
         private readonly int protocolversion;
@@ -201,7 +200,6 @@ namespace MinecraftClient
             lock (teams)
                 return new Dictionary<string, PlayerTeam>(teams, StringComparer.Ordinal);
         }
-
         /// <summary>
         /// Get the team that contains the given player/entity name, or <c>null</c> if not found.
         /// </summary>
@@ -343,7 +341,6 @@ namespace MinecraftClient
 
             /* Load commands from Commands namespace */
             LoadCommands();
-
             if (botsOnHold.Count == 0)
             {
                 RegisterBots();
@@ -456,6 +453,29 @@ namespace MinecraftClient
                 avgSpeed = stats.AvgSpeed;
         }
 
+        public void SaveStats()
+        {
+            var stats = new QueueStats
+            {
+                AvgSpeed = avgSpeed
+            };
+
+            string json = JsonSerializer.Serialize(stats);
+            File.WriteAllText("queue_stats.json", json);
+        }
+        public void LoadStats()
+        {
+            if (!File.Exists("queue_stats.json"))
+                return;
+
+            string json = File.ReadAllText("queue_stats.json");
+
+            var stats = JsonSerializer.Deserialize<QueueStats>(json);
+
+            if (stats != null)
+                avgSpeed = stats.AvgSpeed;
+        }
+        
         public void Transfer(string newHost, int newPort)
         {
             // Do not block here: a new handler can start processing packets before the
@@ -4650,6 +4670,7 @@ namespace MinecraftClient
         /// <param name="TimeOfDay"></param>
         public void OnTimeUpdate(long WorldAge, long TimeOfDay)
         {
+            
             // TimeUpdate sent every server tick hence used as timeout detect
             UpdateKeepAlive();
             // calculate server tps
