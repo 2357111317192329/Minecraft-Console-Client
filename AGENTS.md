@@ -1,6 +1,5 @@
 # AGENTS.md
 
-
 ## Project
 - Minecraft Console Client (MCC) is a cross-platform text/TUI client for Minecraft Java Edition.
 - Primary scope: connect to servers, send chat and commands, receive text, automate gameplay/admin tasks, and extend behavior through built-in bots or runtime C# scripts.
