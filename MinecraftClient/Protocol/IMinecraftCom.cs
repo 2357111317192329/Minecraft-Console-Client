@@ -49,6 +49,14 @@ namespace MinecraftClient.Protocol
         bool SendChatMessage(string message, PlayerKeyPair? playerKeyPair = null);
 
         /// <summary>
+        /// Send a custom click action packet introduced for dialogs in Minecraft 1.21.6.
+        /// </summary>
+        /// <param name="id">Custom action resource location</param>
+        /// <param name="payload">Optional NBT payload</param>
+        /// <returns>True if successfully sent</returns>
+        bool SendCustomClickAction(string id, Dictionary<string, object>? payload);
+
+        /// <summary>
         /// Allow to respawn after death
         /// </summary>
         /// <returns>True if packet successfully sent</returns>
@@ -200,6 +208,17 @@ namespace MinecraftClient.Protocol
         bool SendPlaceRecipe(int windowId, string recipeId, bool makeAll);
 
         /// <summary>
+        /// Send a book edit/sign packet for the currently held writable book.
+        /// </summary>
+        /// <param name="currentBook">Current held writable book</param>
+        /// <param name="pages">Book pages</param>
+        /// <param name="title">Title when signing, otherwise null</param>
+        /// <param name="author">Current player name when signing</param>
+        /// <param name="selectedHotbarSlot">Selected hotbar slot, 0-8</param>
+        /// <returns>True if packet was successfully sent</returns>
+        bool SendEditBook(Item currentBook, IReadOnlyList<string> pages, string? title, string author, int selectedHotbarSlot);
+
+        /// <summary>
         /// Plays animation
         /// </summary>
         /// <param name="animation">0 for left arm, 1 for right arm</param>
@@ -271,7 +290,7 @@ namespace MinecraftClient.Protocol
         /// </summary>
         /// <returns></returns>
         bool SendPlayerSession(PlayerKeyPair? playerKeyPair);
-        
+
         /// <summary>
         /// Send the server a command to type in the item name in the Anvil inventory when it's open.
         /// </summary>
@@ -290,7 +309,7 @@ namespace MinecraftClient.Protocol
         /// <param name="name">The cookie identifier/name</param>
         /// <param name="data">The cookie data byte array</param>
         bool SendCookieResponse(string name, byte[]? data);
-        
+
         /// <summary>
         /// Send the server known data packs
         /// </summary>

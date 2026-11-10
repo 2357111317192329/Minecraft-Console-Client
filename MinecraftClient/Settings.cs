@@ -209,6 +209,7 @@ namespace MinecraftClient
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
             string tomlString = TomletMain.TomlStringFrom(Config);
             Thread.CurrentThread.CurrentCulture = Program.ActualCulture;
+            tomlString = RemoveLegacyAuthServerSection(tomlString);
 
             string[] tomlList = tomlString.Split('\n');
             StringBuilder newConfig = new();
@@ -270,6 +271,19 @@ namespace MinecraftClient
                     }
                 }
             }
+        }
+
+        private static string RemoveLegacyAuthServerSection(string tomlString)
+        {
+            const string legacySection = "[Main.General.AuthServer]";
+            int sectionStart = tomlString.IndexOf(legacySection, StringComparison.Ordinal);
+            if (sectionStart < 0)
+                return tomlString;
+
+            int nextSection = tomlString.IndexOf("\n[", sectionStart + legacySection.Length, StringComparison.Ordinal);
+            return nextSection < 0
+                ? tomlString[..sectionStart]
+                : tomlString.Remove(sectionStart, nextSection - sectionStart + 1);
         }
 
         /// <summary>
@@ -656,6 +670,8 @@ namespace MinecraftClient
 
                     General.Account.Login ??= string.Empty;
                     General.Account.Password ??= string.Empty;
+                    if (!General.MigrateLegacyAuthServer())
+                        ConsoleIO.WriteLogLine(Translations.config_auth_server_url_invalid);
                     if (!InternalConfig.KeepAccountSettings)
                     {
                         if (Advanced.AccountList.TryGetValue(General.Account.Login, out AccountInfoConfig account))
@@ -679,6 +695,8 @@ namespace MinecraftClient
 
                     if (Advanced.TcpTimeout < 1)
                         Advanced.TcpTimeout = 1;
+
+                    Advanced.ForgeModTranslationPath = Advanced.ForgeModTranslationPath.Trim();
 
                     if (Advanced.MovementSpeed < 1)
                         Advanced.MovementSpeed = 1;
@@ -751,12 +769,72 @@ namespace MinecraftClient
 
                     [TomlInlineComment("$Main.General.method$")]
                     public LoginMethod Method = LoginMethod.mcc;
+
+                    [TomlInlineComment("$Main.General.AuthServerUrl$")]
+                    public string AuthServerUrl = string.Empty;
+
+                    // Retained only to deserialize pre-URL configs. WriteToFile() removes this legacy section.
                     [TomlInlineComment("$Main.General.AuthlibServer$")]
                     public AuthlibServer AuthServer = new();
 
                     [TomlInlineComment("$Main.General.AuthlibUser$")]
                     public string AuthUser = "";
-                  
+
+                    public bool MigrateLegacyAuthServer()
+                    {
+                        AuthServerUrl ??= string.Empty;
+                        if (TrySetAuthServerUrl(AuthServerUrl))
+                            return true;
+
+                        if (!string.IsNullOrWhiteSpace(AuthServerUrl))
+                            return false;
+
+                        if (!string.IsNullOrWhiteSpace(AuthServer.Host))
+                        {
+                            string path = AuthServer.AuthlibInjectorAPIPath ?? string.Empty;
+                            if (!path.StartsWith('/'))
+                                path = '/' + path;
+
+                            string legacyUrl = $"{(AuthServer.UseHttps ? "https" : "http")}://{AuthServer.Host}:{AuthServer.Port}{path}";
+                            return TrySetAuthServerUrl(legacyUrl);
+                        }
+
+                        return true;
+                    }
+
+                    public bool TrySetAuthServerUrl(string url)
+                    {
+                        if (!TryGetNormalizedAuthServerUri(url, out Uri? authServerUri))
+                            return false;
+
+                        AuthServerUrl = authServerUri.AbsoluteUri;
+                        return true;
+                    }
+
+                    public bool TryGetAuthServerUri([NotNullWhen(true)] out Uri? authServerUri)
+                        => TryGetNormalizedAuthServerUri(AuthServerUrl, out authServerUri);
+
+                    private static bool TryGetNormalizedAuthServerUri(string? url, [NotNullWhen(true)] out Uri? authServerUri)
+                    {
+                        authServerUri = null;
+                        if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out Uri? parsedUri)
+                            || (!parsedUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                                && !parsedUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                            || string.IsNullOrWhiteSpace(parsedUri.Host)
+                            || !string.IsNullOrEmpty(parsedUri.UserInfo)
+                            || !string.IsNullOrEmpty(parsedUri.Query)
+                            || !string.IsNullOrEmpty(parsedUri.Fragment))
+                        {
+                            return false;
+                        }
+
+                        var builder = new UriBuilder(parsedUri)
+                        {
+                            Path = parsedUri.AbsolutePath.TrimEnd('/') + "/"
+                        };
+                        authServerUri = builder.Uri;
+                        return true;
+                    }
 
                     public enum LoginType { mojang, microsoft,yggdrasil,offline};
 
@@ -768,12 +846,24 @@ namespace MinecraftClient
                 {
                     [TomlInlineComment("$Main.Advanced.enable_sentry$")]
                     public bool EnableSentry = true;
-                    
+
                     [TomlInlineComment("$Main.Advanced.language$")]
                     public string Language = "en_us";
 
                     [TomlInlineComment("$Main.Advanced.LoadMccTrans$")]
                     public bool LoadMccTranslation = true;
+
+                    [TomlInlineComment("$Main.Advanced.load_resourcepack_translations$")]
+                    public bool LoadResourcePackTranslations = true;
+
+                    [TomlInlineComment("$Main.Advanced.load_forge_mod_translations$")]
+                    public bool LoadForgeModTranslations = false;
+
+                    [TomlInlineComment("$Main.Advanced.auto_discover_forge_mod_translation_sources$")]
+                    public bool AutoDiscoverForgeModTranslationSources = true;
+
+                    [TomlInlineComment("$Main.Advanced.forge_mod_translation_path$")]
+                    public string ForgeModTranslationPath = "";
 
                     // [TomlInlineComment("$Main.Advanced.console_title$")]
                     public string ConsoleTitle = "%username%@%serverip% - Minecraft Console Client";
@@ -1063,6 +1153,12 @@ namespace MinecraftClient
                 [TomlInlineComment("$Logging.DebugMessages$")]
                 public bool DebugMessages = false;
 
+                [TomlInlineComment("$Logging.PacketDebugMessages$")]
+                public bool PacketDebugMessages = false;
+
+                [TomlInlineComment("$Logging.PacketDebugExclusions$")]
+                public List<string> PacketDebugExclusions = new();
+
                 [TomlInlineComment("$Logging.ChatMessages$")]
                 public bool ChatMessages = true;
 
@@ -1122,6 +1218,8 @@ namespace MinecraftClient
 
                 public void OnSettingUpdate()
                 {
+                    ConsoleIO.ChatVisible = General.Display_Chat;
+
                     var backend = ConsoleIO.Backend;
                     if (backend == null) return;
 
@@ -1224,6 +1322,9 @@ namespace MinecraftClient
 
                     [TomlInlineComment("$Console.General.Display_Input$")]
                     public bool Display_Input = true;
+
+                    [TomlInlineComment("$Console.General.Display_Chat$")]
+                    public bool Display_Chat = true;
 
                     [TomlInlineComment("$Console.General.History_Input_Records$")]
                     public int History_Input_Records = 32;
@@ -1496,7 +1597,7 @@ namespace MinecraftClient
                                 string varname = var_name.ToString();
                                 string varname_lower = Settings.ToLowerIfNeed(varname);
                                 i = i + varname.Length + 1;
-                                
+
                                 if (TryGetReadOnlyVar(varname_lower, out object? readOnlyVar))
                                 {
                                     result.Append(readOnlyVar.ToString());

@@ -27,6 +27,13 @@ namespace MinecraftClient.Protocol
     /// </remarks>
     public static class ProtocolHandler
     {
+        public enum AuthlibServerValidationResult
+        {
+            Valid,
+            Unreachable,
+            InvalidResponse
+        }
+
         /// <summary>
         /// Perform a DNS lookup for a Minecraft Service using the specified domain name
         /// </summary>
@@ -135,6 +142,37 @@ namespace MinecraftClient.Protocol
         }
 
         /// <summary>
+        /// Verifies that an authlib-injector URL is reachable and returns its metadata document.
+        /// </summary>
+        public static AuthlibServerValidationResult ValidateAuthlibServer(Uri authServerUri)
+        {
+            string result = string.Empty;
+            int statusCode;
+            try
+            {
+                statusCode = DoHTTPSGet(authServerUri, ref result);
+            }
+            catch
+            {
+                return AuthlibServerValidationResult.Unreachable;
+            }
+
+            if (statusCode != 200)
+                return AuthlibServerValidationResult.InvalidResponse;
+
+            try
+            {
+                return Json.ParseJson(result)?["meta"]?["implementationName"]?.GetStringValue() is { Length: > 0 }
+                    ? AuthlibServerValidationResult.Valid
+                    : AuthlibServerValidationResult.InvalidResponse;
+            }
+            catch
+            {
+                return AuthlibServerValidationResult.InvalidResponse;
+            }
+        }
+
+        /// <summary>
         /// Get a protocol handler for the specified Minecraft version
         /// </summary>
         /// <param name="client">Tcp Client connected to the server</param>
@@ -156,7 +194,7 @@ namespace MinecraftClient.Protocol
             {
                 4, 5, 47, 107, 108, 109, 110, 210, 315, 316, 335, 338, 340, 393, 401, 404, 477, 480, 485, 490, 498, 573,
                 575, 578, 735, 736, 751, 753, 754, 755, 756, 757, 758, 759, 760, 761, 762, 763, 764, 765, 766, 767, 768,
-                769, 770, 771, 772, 773, 774, 775
+                769, 770, 771, 772, 773, 774, 775, 776
             };
             //Console.WriteLine("Handler type = " + typeof(Protocol18Handler).AssemblyQualifiedName);
             if (Array.IndexOf(suppoertedVersionsProtocol18, normalizedVersion) > -1)
@@ -374,6 +412,8 @@ namespace MinecraftClient.Protocol
                         return 774;
                     case "26.1":
                         return 775;
+                    case "26.2":
+                        return 776;
                     default:
                         return 0;
                 }
@@ -396,7 +436,7 @@ namespace MinecraftClient.Protocol
             4, 5, 47, 107, 108, 109, 110, 210, 315, 316, 335, 338, 340, 393, 401, 404,
             477, 480, 485, 490, 498, 573, 575, 578, 735, 736, 751, 753, 754, 755, 756,
             757, 758, 759, 760, 761, 762, 763, 764, 765, 766, 767, 768, 769, 770, 771,
-            772, 773, 774, 775
+            772, 773, 774, 775, 776
         ];
 
         /// <summary>
@@ -518,6 +558,7 @@ namespace MinecraftClient.Protocol
                 773 => "1.21.9",
                 774 => "1.21.11",
                 775 => "26.1",
+                776 => "26.2",
                 _ => "0.0"
             };
         }
@@ -715,9 +756,10 @@ namespace MinecraftClient.Protocol
                 string json_request = "{\"agent\": { \"name\": \"Minecraft\", \"version\": 1 }, \"username\": \"" +
                                       JsonEncode(user) + "\", \"password\": \"" + JsonEncode(pass) +
                                       "\", \"clientToken\": \"" + JsonEncode(session.ClientID) + "\" }";
-                int code = DoHTTPSPost(Config.Main.General.AuthServer.Host, Config.Main.General.AuthServer.Port,
-                    Config.Main.General.AuthServer.AuthlibInjectorAPIPath + "/authserver/authenticate", json_request,
-                    Config.Main.General.AuthServer.UseHttps, ref result);
+                if (!Config.Main.General.TryGetAuthServerUri(out Uri? authServerUri))
+                    return LoginResult.OtherError;
+
+                int code = DoHTTPSPost(authServerUri, "authserver/authenticate", json_request, ref result);
                 if (code == 200)
                 {
                     if (result.Contains("availableProfiles\":[]}"))
@@ -956,7 +998,8 @@ namespace MinecraftClient.Protocol
                     session.PlayerID = profile.UUID;
                     session.ID = accessToken;
                     session.RefreshToken = msaResponse.RefreshToken;
-                    InternalConfig.Account.Login = msaResponse.Email;
+                    if (!string.IsNullOrWhiteSpace(msaResponse.Email))
+                        InternalConfig.Account.Login = msaResponse.Email;
                     return LoginResult.Success;
                 }
                 else
@@ -1071,9 +1114,10 @@ namespace MinecraftClient.Protocol
                                       "\", \"clientToken\": \"" + JsonEncode(currentsession.ClientID) +
                                       "\", \"selectedProfile\": { \"id\": \"" + JsonEncode(currentsession.PlayerID) +
                                       "\", \"name\": \"" + JsonEncode(currentsession.PlayerName) + "\" } }";
-                int code = DoHTTPSPost(Config.Main.General.AuthServer.Host, Config.Main.General.AuthServer.Port,
-                    Config.Main.General.AuthServer.AuthlibInjectorAPIPath + "/authserver/refresh", json_request,
-                    Config.Main.General.AuthServer.UseHttps, ref result);
+                if (!Config.Main.General.TryGetAuthServerUri(out Uri? authServerUri))
+                    return LoginResult.OtherError;
+
+                int code = DoHTTPSPost(authServerUri, "authserver/refresh", json_request, ref result);
                 if (code == 200)
                 {
                     if (result is null)
@@ -1127,16 +1171,18 @@ namespace MinecraftClient.Protocol
                 string result = "";
                 string json_request = "{\"accessToken\":\"" + accesstoken + "\",\"selectedProfile\":\"" + uuid +
                                       "\",\"serverId\":\"" + serverhash + "\"}";
-                string host = type == LoginType.yggdrasil
-                    ? Config.Main.General.AuthServer.Host
-                    : "sessionserver.mojang.com";
-                int port = type == LoginType.yggdrasil ? Config.Main.General.AuthServer.Port : 443;
-                string endpoint = type == LoginType.yggdrasil
-                    ? Config.Main.General.AuthServer.AuthlibInjectorAPIPath + "/sessionserver/session/minecraft/join"
-                    : "/session/minecraft/join";
+                int code;
+                if (type == LoginType.yggdrasil)
+                {
+                    if (!Config.Main.General.TryGetAuthServerUri(out Uri? authServerUri))
+                        return false;
 
-                bool useHttps = type == LoginType.yggdrasil ? Config.Main.General.AuthServer.UseHttps : true;
-                int code = DoHTTPSPost(host, port, endpoint, json_request, useHttps, ref result);
+                    code = DoHTTPSPost(authServerUri, "sessionserver/session/minecraft/join", json_request, ref result);
+                }
+                else
+                {
+                    code = DoHTTPSPost("sessionserver.mojang.com", 443, "/session/minecraft/join", json_request, ref result);
+                }
                 return (code >= 200 && code < 300);
             }
             catch
@@ -1275,6 +1321,16 @@ namespace MinecraftClient.Protocol
             return DoHTTPSRequest(HttpMethod.Get, host, port, path, headers, null, useHttps: true, ref result);
         }
 
+        private static int DoHTTPSGet(Uri requestUri, ref string result)
+        {
+            Dictionary<string, string> headers = new()
+            {
+                { "User-Agent", "MCC/" + Program.Version }
+            };
+            return DoHTTPSRequest(HttpMethod.Get, requestUri.Host, requestUri.Port, requestUri.PathAndQuery, headers,
+                null, requestUri.Scheme == Uri.UriSchemeHttps, ref result);
+        }
+
         /// <summary>
         /// Make a POST request to the specified endpoint of the Mojang API
         /// </summary>
@@ -1286,6 +1342,13 @@ namespace MinecraftClient.Protocol
         /// <returns>HTTP Status code</returns>
         private static int DoHTTPSPost(string host, int port, string path, string body, ref string result)
             => DoHTTPSPost(host, port, path, body, useHttps: true, ref result);
+
+        private static int DoHTTPSPost(Uri baseUri, string relativePath, string body, ref string result)
+        {
+            Uri requestUri = new(baseUri, relativePath);
+            return DoHTTPSPost(requestUri.Host, requestUri.Port, requestUri.PathAndQuery, body,
+                requestUri.Scheme == Uri.UriSchemeHttps, ref result);
+        }
 
         /// <summary>
         /// Make a POST request to the specified endpoint of the Mojang API

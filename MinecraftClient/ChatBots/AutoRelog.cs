@@ -23,7 +23,7 @@ namespace MinecraftClient.ChatBots
             public Range Delay = new(3);
 
             [TomlInlineComment("$ChatBot.AutoRelog.Retries$")]
-            public int Retries = 3;
+            public int Retries = -1;
 
             [TomlInlineComment("$ChatBot.AutoRelog.Ignore_Kick_Message$")]
             public bool Ignore_Kick_Message = false;
@@ -31,27 +31,27 @@ namespace MinecraftClient.ChatBots
             [TomlPrecedingComment("$ChatBot.AutoRelog.Kick_Messages$")]
             public string[] Kick_Messages = new string[] { "Connection has been lost", "Server is restarting", "Server is full", "Too Many people" };
 
-            [NonSerialized]
-            public static int _BotRecoAttempts = 0;
-
             public void OnSettingUpdate()
             {
+                Kick_Messages ??= Array.Empty<string>();
+
+                if (!double.IsFinite(Delay.min))
+                    Delay.min = 0.1;
+                if (!double.IsFinite(Delay.max))
+                    Delay.max = 0.1;
+
                 Delay.min = Math.Max(0.1, Delay.min);
                 Delay.max = Math.Max(0.1, Delay.max);
 
-                double maxDelaySeconds = int.MaxValue / (double)Settings.ClientTicksPerSecond;
+                double maxDelaySeconds = (uint.MaxValue - 1) / 1000D;
                 Delay.min = Math.Min(maxDelaySeconds, Delay.min);
                 Delay.max = Math.Min(maxDelaySeconds, Delay.max);
 
                 if (Delay.min > Delay.max)
                     (Delay.min, Delay.max) = (Delay.max, Delay.min);
 
-                if (Retries == -1)
-                    Retries = int.MaxValue;
-
-                if (Enabled)
-                    for (int i = 0; i < Kick_Messages.Length; i++)
-                        Kick_Messages[i] = Kick_Messages[i].ToLower();
+                if (Retries < -1)
+                    Retries = -1;
             }
 
             public struct Range
@@ -77,7 +77,8 @@ namespace MinecraftClient.ChatBots
             }
         }
 
-        private static readonly Random random = new();
+        private static readonly AutoRelogRetryPolicy s_retryPolicy = new(TimeProvider.System);
+        private readonly long? sourceConnectionAttempt;
 
         /// <summary>
         /// This bot automatically re-join the server if kick message contains predefined string
@@ -85,8 +86,13 @@ namespace MinecraftClient.ChatBots
         /// <param name="DelayBeforeRelogMin">Minimum delay before re-joining the server (in seconds)</param>
         /// <param name="DelayBeforeRelogMax">Maximum delay before re-joining the server (in seconds)</param>
         /// <param name="retries">Number of retries if connection fails (-1 = infinite)</param>
-        public AutoRelog()
+        public AutoRelog() : this(null)
         {
+        }
+
+        private AutoRelog(long? sourceConnectionAttempt)
+        {
+            this.sourceConnectionAttempt = sourceConnectionAttempt;
             LogDebugToConsole(string.Format(Translations.bot_autoRelog_launch, Config.Retries));
         }
 
@@ -97,7 +103,12 @@ namespace MinecraftClient.ChatBots
 
         public override void AfterGameJoined()
         {
-            Configs._BotRecoAttempts = 0;
+            s_retryPolicy.MarkJoined();
+        }
+
+        public override void Update()
+        {
+            ResetRetriesAfterStableJoin();
         }
 
         private void _Initialize()
@@ -114,59 +125,75 @@ namespace MinecraftClient.ChatBots
             if (reason == DisconnectReason.UserLogout)
             {
                 LogDebugToConsole(Translations.bot_autoRelog_ignore_user_logout);
+                return false;
             }
-            else if (Config.Retries < 0 || Configs._BotRecoAttempts < Config.Retries)
+
+            message = GetVerbatim(message);
+            LogDebugToConsole(string.Format(Translations.bot_autoRelog_disconnect_msg, message));
+
+            if (!AutoRelogRetryPolicy.ShouldReconnect(
+                    reason,
+                    message,
+                    Config.Ignore_Kick_Message,
+                    Config.Kick_Messages,
+                    out string? matchedMessage))
             {
-                message = GetVerbatim(message);
-                string comp = message.ToLower();
-
-                LogDebugToConsole(string.Format(Translations.bot_autoRelog_disconnect_msg, message));
-
-                if (Config.Ignore_Kick_Message)
-                {
-                    Configs._BotRecoAttempts++;
-                    LaunchDelayedReconnection(null);
-                    return true;
-                }
-
-                foreach (string msg in Config.Kick_Messages)
-                {
-                    if (comp.Contains(msg))
-                    {
-                        Configs._BotRecoAttempts++;
-                        LaunchDelayedReconnection(msg);
-                        return true;
-                    }
-                }
-
                 LogDebugToConsole(Translations.bot_autoRelog_reconnect_ignore);
+                return false;
             }
 
-            return false;
+            return LaunchDelayedReconnection(matchedMessage);
         }
 
-        private void LaunchDelayedReconnection(string? msg)
+        private static void ResetRetriesAfterStableJoin()
         {
-            double delay = random.NextDouble() * (Config.Delay.max - Config.Delay.min) + Config.Delay.min;
+            if (s_retryPolicy.ResetAfterStableConnection())
+                McClient.ReconnectionAttemptsLeft = Config.Retries;
+        }
+
+        private static bool HasUnlimitedRetries()
+        {
+            return Config.Retries == -1;
+        }
+
+        private bool LaunchDelayedReconnection(string? msg)
+        {
+            if (!s_retryPolicy.TryReserveAttempt(Config.Retries, out int retriesLeft))
+                return false;
+
+            double delay = Random.Shared.NextDouble() * (Config.Delay.max - Config.Delay.min) + Config.Delay.min;
             LogDebugToConsole(string.Format(string.IsNullOrEmpty(msg) ? Translations.bot_autoRelog_reconnect_always : Translations.bot_autoRelog_reconnect, msg));
 
-            int retriesLeft = Config.Retries - Configs._BotRecoAttempts;
-            if (retriesLeft < 0)
-                retriesLeft = 0;
-
-            string retriesDisplay = Config.Retries == int.MaxValue
+            string retriesDisplay = HasUnlimitedRetries()
                 ? Translations.bot_autoRelog_retries_unlimited
                 : retriesLeft.ToString();
 
-            LogToConsole(string.Format(Translations.bot_autoRelog_wait_with_retries, delay, retriesDisplay));
-            ReconnectToTheServer(retriesLeft, (int)Math.Floor(delay), true);
+            McClient.ReconnectionAttemptsLeft = retriesLeft;
+            long connectionAttempt = sourceConnectionAttempt ?? Handler.ConnectionAttempt;
+            if (Program.TryRestart(
+                    connectionAttempt,
+                    TimeSpan.FromSeconds(delay),
+                    keepAccountAndServerSettings: true,
+                    sourceCleanupCompletion: sourceConnectionAttempt.HasValue ? null : Handler.DisconnectCompletion))
+            {
+                LogToConsole(string.Format(Translations.bot_autoRelog_wait_with_retries, delay, retriesDisplay));
+                return true;
+            }
+
+            s_retryPolicy.RollBackReservedAttempt();
+            return Program.HasRestartPending(connectionAttempt);
         }
 
         public static bool OnDisconnectStatic(DisconnectReason reason, string message)
         {
+            return OnDisconnectStatic(reason, message, Program.CurrentConnectionAttempt);
+        }
+
+        internal static bool OnDisconnectStatic(DisconnectReason reason, string message, long sourceConnectionAttempt)
+        {
             if (Config.Enabled)
             {
-                AutoRelog bot = new();
+                AutoRelog bot = new(sourceConnectionAttempt);
                 bot.Initialize();
                 return bot.OnDisconnect(reason, message);
             }

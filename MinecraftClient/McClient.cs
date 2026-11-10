@@ -8,12 +8,14 @@ using System.Text;
 using System.Text.Json;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using Brigadier.NET;
 using Brigadier.NET.Exceptions;
 using MinecraftClient.ChatBots;
 using MinecraftClient.CommandHandler;
 using MinecraftClient.CommandHandler.Patch;
 using MinecraftClient.Commands;
+using MinecraftClient.Dialogs;
 using MinecraftClient.Inventory;
 using MinecraftClient.Logger;
 using MinecraftClient.Mapping;
@@ -57,6 +59,7 @@ namespace MinecraftClient
         private readonly List<ChatBot> bots = new();
         private static readonly List<ChatBot> botsOnHold = new();
         private static readonly Dictionary<int, Container> inventories = new();
+        private static readonly HashSet<int> inventoriesWithFullContents = new();
         private readonly Dictionary<string, RecipeBookRecipeEntry> unlockedRecipes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Achievement> achievements = new(StringComparer.Ordinal);
         private string? activeAdvancementTab;
@@ -137,7 +140,7 @@ namespace MinecraftClient
 
         // scoreboard teams (key = team name)
         private readonly Dictionary<string, PlayerTeam> teams = new(StringComparer.Ordinal);
-        
+
         // Sneaking
         public bool IsSneaking { get; set; } = false;
         private bool isUnderSlab = false;
@@ -159,7 +162,7 @@ namespace MinecraftClient
 
         // ChatBot OnNetworkPacket event
         private bool networkPacketCaptureEnabled = false;
-        
+
         // Cookies
         private Dictionary<string, byte[]> Cookies { get; set; } = new();
 
@@ -223,6 +226,7 @@ namespace MinecraftClient
         public void GetCookie(string key, out byte[]? data) => Cookies.TryGetValue(key, out data);
         public void SetCookie(string key, byte[] data) => Cookies[key] = data;
         public void DeleteCookie(string key) => Cookies.Remove(key, out var data);
+        public void DeleteAllCookies() => Cookies?.Clear();
         public (Location location, string material, string typeLabel, string[] frontText, string[] backText, bool isWaxed)[] GetKnownSigns()
         {
             lock (signDataLock)
@@ -242,14 +246,17 @@ namespace MinecraftClient
         TcpClient client = null!;
         IMinecraftCom handler = null!;
         SessionToken _sessionToken;
-        CancellationTokenSource? cmdprompt = null;
         Tuple<Thread, CancellationTokenSource>? timeoutdetector = null;
         private int transferInProgress = 0;
-        private bool consoleReadThreadOwned = false;
-        private bool consoleHandlersAttached = false;
+        private readonly ConnectionAttemptLifecycle connectionLifecycle = new();
+        private int disconnectOwnerThreadId;
+        private readonly TaskCompletionSource<bool> disconnectCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public ILogger Log;
-        
+        public DialogManager Dialogs { get; }
+        internal long ConnectionAttempt { get; }
+        internal Task DisconnectCompletion => disconnectCompletion.Task;
+
         private static IMinecraftComHandler? instance;
         public static IMinecraftComHandler? Instance => instance;
 
@@ -263,9 +270,23 @@ namespace MinecraftClient
         /// <param name="protocolversion">Minecraft protocol version to use</param>
         /// <param name="forgeInfo">ForgeInfo item stating that Forge is enabled</param>
         public McClient(SessionToken session, PlayerKeyPair? playerKeyPair, string server_ip, ushort port, int protocolversion, ForgeInfo? forgeInfo)
+            : this(session, playerKeyPair, server_ip, port, protocolversion, forgeInfo, Program.CurrentConnectionAttempt)
+        {
+        }
+
+        internal McClient(
+            SessionToken session,
+            PlayerKeyPair? playerKeyPair,
+            string server_ip,
+            ushort port,
+            int protocolversion,
+            ForgeInfo? forgeInfo,
+            long connectionAttempt)
         {
             CmdResult.currentHandler = this;
             instance = this;
+            ConnectionAttempt = connectionAttempt;
+
             terrainAndMovementsEnabled = Config.Main.Advanced.TerrainAndMovements;
             inventoryHandlingEnabled = Config.Main.Advanced.InventoryHandling;
             entityHandlingEnabled = Config.Main.Advanced.EntityHandling;
@@ -289,13 +310,15 @@ namespace MinecraftClient
             Log.ChatEnabled = Config.Logging.ChatMessages;
             Log.WarnEnabled = Config.Logging.WarningMessages;
             Log.ErrorEnabled = Config.Logging.ErrorMessages;
+            Dialogs = new DialogManager(this);
+
             // SENTRY: Send our client version and server version to Sentry
             SentrySdk.ConfigureScope(scope =>
             {
                 scope.SetTag("Protocol Version", protocolversion.ToString());
                 scope.SetTag("Minecraft Version", ProtocolHandler.ProtocolVersion2MCVer(protocolversion));
                 scope.SetTag("MCC Build", Program.BuildInfo is null ? "Debug" : Program.BuildInfo);
-                    
+
                 if (forgeInfo is not null)
                     scope.SetTag("Forge Version", forgeInfo.Version.ToString());
 
@@ -305,7 +328,8 @@ namespace MinecraftClient
                     MinecraftVersion = ProtocolHandler.ProtocolVersion2MCVer(protocolversion),
                     ForgeInfo = forgeInfo?.Version
                 };
-                scope.Contexts["Client Configuration"] = new 
+
+                scope.Contexts["Client Configuration"] = new
                 {
                     TerrainAndMovementsEnabled = terrainAndMovementsEnabled,
                     InventoryHandlingEnabled = inventoryHandlingEnabled,
@@ -314,17 +338,26 @@ namespace MinecraftClient
             });
             LoadStats();
             SentrySdk.StartSession();
-            
+
             /* Load commands from Commands namespace */
             LoadCommands();
             if (botsOnHold.Count == 0)
+            {
                 RegisterBots();
+            }
+            else
+            {
+                ConnectionAttemptLifecycle.RestoreHeldBots(botsOnHold, bot => BotLoad(bot, false));
+            }
+
             try
             {
                 client = ProxyHandler.NewTcpClient(host, port);
                 client.ReceiveBufferSize = 1024 * 1024;
                 client.ReceiveTimeout = Config.Main.Advanced.TcpTimeout * 1000; // Default: 30 seconds
                 handler = Protocol.ProtocolHandler.GetProtocolHandler(client, protocolversion, forgeInfo, this);
+                if (forgeInfo is not null && forgeInfo.Version == FMLVersion.FML)
+                    ChatParser.LoadForgeModTranslations(forgeInfo.Mods.Select(static mod => mod.ModID));
                 Log.Info(Translations.mcc_version_supported);
 
                 timeoutdetector = new(new Thread(new ParameterizedThreadStart(TimeoutDetector)), new CancellationTokenSource());
@@ -335,10 +368,6 @@ namespace MinecraftClient
                 {
                     if (handler.Login(this.playerKeyPair, session))
                     {
-                        foreach (ChatBot bot in botsOnHold)
-                            BotLoad(bot, false);
-                        botsOnHold.Clear();
-
                         Log.Info(string.Format(Translations.mcc_joined, Config.Main.Advanced.InternalCmdChar.ToLogString()));
 
                         StartConsoleSession();
@@ -365,11 +394,21 @@ namespace MinecraftClient
 
             return;
 
-            Retry:
+        Retry:
             if (timeoutdetector is not null)
             {
                 timeoutdetector.Item2.Cancel();
                 timeoutdetector = null;
+            }
+
+            if (connectionLifecycle.IsFailureClaimed)
+                return;
+
+            if (!InternalConfig.InteractiveMode)
+            {
+                StopConsoleSession();
+                Program.HandleFailure(null, false, ChatBot.DisconnectReason.ConnectionLost);
+                return;
             }
 
             if (!Config.ChatBot.AutoRelog.Enabled)
@@ -380,34 +419,40 @@ namespace MinecraftClient
                     Thread.Sleep(5000);
                     ReconnectionAttemptsLeft--;
                     Program.Restart();
-                }
-                else if (InternalConfig.InteractiveMode)
-                {
-                    StopConsoleSession();
-                    Program.HandleFailure();
+                    return;
                 }
 
-                throw new Exception("Initialization failed.");
-            } 
-            else
-            {
-                // AutoRelog is enabled - invoke its static handler to trigger reconnection.
-                // Use the same "Connection has been lost" message that OnConnectionLost uses
-                // for ConnectionLost, so it matches the default Kick_Messages.
-                if (AutoRelog.OnDisconnectStatic(ChatBot.DisconnectReason.ConnectionLost, Translations.mcc_disconnect_lost))
-                    return; // AutoRelog is triggering a restart
-
-                // AutoRelog chose not to reconnect (e.g., message didn't match
-                // kick messages and Ignore_Kick_Message is false, or retry limit reached)
-                if (InternalConfig.InteractiveMode)
-                {
-                    StopConsoleSession();
-                    Program.HandleFailure();
-                }
-
-                throw new Exception("Initialization failed.");
+                StopConsoleSession();
+                Program.HandleFailure();
+                return;
             }
+
+            OnConnectionLost(ChatBot.DisconnectReason.ConnectionLost, Translations.mcc_disconnect_lost);
+            return;
         }
+        public void SaveStats()
+        {
+            var stats = new QueueStats
+            {
+                AvgSpeed = avgSpeed
+            };
+
+            string json = JsonSerializer.Serialize(stats);
+            File.WriteAllText("queue_stats.json", json);
+        }
+        public void LoadStats()
+        {
+            if (!File.Exists("queue_stats.json"))
+                return;
+
+            string json = File.ReadAllText("queue_stats.json");
+
+            var stats = JsonSerializer.Deserialize<QueueStats>(json);
+
+            if (stats != null)
+                avgSpeed = stats.AvgSpeed;
+        }
+
         public void SaveStats()
         {
             var stats = new QueueStats
@@ -450,13 +495,22 @@ namespace MinecraftClient
             {
                 ResolveTransferAddress(ref resolvedHost, ref resolvedPort);
                 Log.Info($"Initiating a transfer to: {resolvedHost}:{resolvedPort}");
-                
+
+                // Backup current bots before unloading, so they can be restored after successful transfer.
+                if (botsOnHold.Count == 0 && bots.Count > 0)
+                {
+                    botsOnHold.AddRange(bots.Where(bot => bot.ScriptOwnerKey is null));
+                }
+
                 // Unload bots
                 UnloadAllBots();
                 bots.Clear();
 
                 ResetStateForTransfer();
-                
+
+                // Snapshot cookies before Dispose clears them
+                Dictionary<string, byte[]> savedCookies = new Dictionary<string, byte[]>(Cookies);
+
                 // Retire the old handler so its updater exits without reporting a stale disconnect.
                 oldHandler.Dispose();
                 oldClient.Close();
@@ -472,6 +526,7 @@ namespace MinecraftClient
 
                 // Reinitialize the protocol handler
                 handler = Protocol.ProtocolHandler.GetProtocolHandler(client, protocolversion, null, this);
+                Cookies = savedCookies;                   // Restore cookies for the new connection before login
                 Log.Info($"Connected to {resolvedHost}:{resolvedPort}");
 
                 // Retry login process
@@ -519,20 +574,24 @@ namespace MinecraftClient
                     timeoutdetector = null;
                 }
 
+                if (!InternalConfig.InteractiveMode)
+                {
+                    StopConsoleSession();
+                    Program.HandleFailure(null, false, ChatBot.DisconnectReason.ConnectionLost);
+                    return;
+                }
+
                 if (ReconnectionAttemptsLeft > 0)
                 {
                     Log.Info($"Reconnecting... Attempts left: {ReconnectionAttemptsLeft}");
                     Thread.Sleep(5000);
                     ReconnectionAttemptsLeft--;
                     Program.Restart();
-                }
-                else if (InternalConfig.InteractiveMode)
-                {
-                    StopConsoleSession();
-                    Program.HandleFailure();
+                    return;
                 }
 
-                throw new Exception("Transfer failed and reconnection attempts exhausted.", ex);
+                StopConsoleSession();
+                Program.HandleFailure();
             }
             finally
             {
@@ -556,36 +615,13 @@ namespace MinecraftClient
 
         private void StartConsoleSession()
         {
-            cmdprompt = new CancellationTokenSource();
-
-            if (!consoleReadThreadOwned)
-            {
-                ConsoleIO.Backend.BeginReadThread();
-                consoleReadThreadOwned = true;
-            }
-
-            if (!consoleHandlersAttached)
-            {
-                ConsoleIO.Backend.MessageReceived += ConsoleReaderOnMessageReceived;
-                ConsoleIO.Backend.OnInputChange += ConsoleIO.AutocompleteHandler;
-                consoleHandlersAttached = true;
-            }
+            Program.EndOfflinePrompt(ConnectionAttempt);
+            ConsoleInputRouter.RouteToClient(this);
         }
 
         private void StopConsoleSession()
         {
-            if (consoleHandlersAttached)
-            {
-                ConsoleIO.Backend.MessageReceived -= ConsoleReaderOnMessageReceived;
-                ConsoleIO.Backend.OnInputChange -= ConsoleIO.AutocompleteHandler;
-                consoleHandlersAttached = false;
-            }
-
-            if (consoleReadThreadOwned)
-            {
-                ConsoleIO.Backend.StopReadThread();
-                consoleReadThreadOwned = false;
-            }
+            ConsoleInputRouter.ClearClient(this);
         }
 
         private void ResetStateForTransfer()
@@ -861,33 +897,21 @@ namespace MinecraftClient
         /// </summary>
         public void Disconnect()
         {
-            instance = null;
-
-            DispatchBotEvent(bot => bot.OnDisconnect(ChatBot.DisconnectReason.UserLogout, ""));
-
-            botsOnHold.Clear();
-            botsOnHold.AddRange(bots);
-
-            if (handler is not null)
+            if (!TryBeginDisconnect())
             {
-                handler.Disconnect();
-                handler.Dispose();
+                if (Volatile.Read(ref disconnectOwnerThreadId) != Environment.CurrentManagedThreadId)
+                    disconnectCompletion.Task.GetAwaiter().GetResult();
+                return;
             }
 
-            if (cmdprompt is not null)
+            try
             {
-                cmdprompt.Cancel();
-                cmdprompt = null;
+                DispatchBotEvent(bot => bot.OnDisconnect(ChatBot.DisconnectReason.UserLogout, string.Empty));
             }
-
-            if (timeoutdetector is not null)
+            finally
             {
-                timeoutdetector.Item2.Cancel();
-                timeoutdetector = null;
+                CompleteDisconnect(sendDisconnectPacket: true);
             }
-
-            if (client is not null)
-                client.Close();
         }
 
         /// <summary>
@@ -895,71 +919,133 @@ namespace MinecraftClient
         /// </summary>
         public void OnConnectionLost(ChatBot.DisconnectReason reason, string message)
         {
-            instance = null;
+            if (reason == ChatBot.DisconnectReason.UserLogout)
+                throw new InvalidOperationException(Translations.exception_user_logout);
 
-            ConsoleIO.CancelAutocomplete();
+            if (!TryBeginDisconnect())
+                return;
 
-            handler.Dispose();
-
-            world.Clear();
-            ClearKnownSigns();
-
-            if (timeoutdetector is not null)
+            bool restartScheduled = false;
+            try
             {
-                if (timeoutdetector is not null && Thread.CurrentThread != timeoutdetector.Item1)
-                    timeoutdetector.Item2.Cancel();
-                timeoutdetector = null;
-            }
+                ConsoleIO.CancelAutocomplete();
 
-            bool will_restart = false;
+                world.Clear();
+                ClearKnownSigns();
 
-            switch (reason)
-            {
-                case ChatBot.DisconnectReason.ConnectionLost:
-                    message = Translations.mcc_disconnect_lost;
-                    Log.Info(message);
-                    break;
+                bool exitOnFailure = Program.PrepareExitOnFailure();
 
-                case ChatBot.DisconnectReason.InGameKick:
-                    Log.Info(Translations.mcc_disconnect_server);
-                    Log.Info(message);
-                    break;
-
-                case ChatBot.DisconnectReason.LoginRejected:
-                    Log.Info(Translations.mcc_disconnect_login);
-                    Log.Info(message);
-                    break;
-
-                case ChatBot.DisconnectReason.UserLogout:
-                    throw new InvalidOperationException(Translations.exception_user_logout);
-            }
-
-            //Process AutoRelog last to make sure other bots can perform their cleanup tasks first (issue #1517)
-            List<ChatBot> onDisconnectBotList = bots.Where(bot => bot is not AutoRelog).ToList();
-            onDisconnectBotList.AddRange(bots.Where(bot => bot is AutoRelog));
-
-            foreach (ChatBot bot in onDisconnectBotList)
-            {
-                try
+                switch (reason)
                 {
-                    will_restart |= bot.OnDisconnect(reason, message);
+                    case ChatBot.DisconnectReason.ConnectionLost:
+                        message = Translations.mcc_disconnect_lost;
+                        Log.Info(message);
+                        break;
+
+                    case ChatBot.DisconnectReason.InGameKick:
+                        Log.Info(Translations.mcc_disconnect_server);
+                        Log.Info(message);
+                        break;
+
+                    case ChatBot.DisconnectReason.LoginRejected:
+                        Log.Info(Translations.mcc_disconnect_login);
+                        Log.Info(message);
+                        break;
                 }
-                catch (Exception e)
+
+                // Process AutoRelog last so every other bot can complete cleanup first.
+                List<ChatBot> onDisconnectBotList = bots.Where(bot => bot is not AutoRelog).ToList();
+                onDisconnectBotList.AddRange(bots.Where(bot => bot is AutoRelog));
+
+                foreach (ChatBot bot in onDisconnectBotList)
                 {
-                    if (e is not ThreadAbortException)
+                    try
                     {
-                        Log.Warn("OnDisconnect: Got error from " + bot.ToString() + ": " + e.ToString());
+                        _ = bot.OnDisconnect(reason, message);
                     }
-                    else throw; //ThreadAbortException should not be caught
+                    catch (Exception exception) when (exception is not ThreadAbortException)
+                    {
+                        Log.Warn("OnDisconnect: Got error from " + bot + ": " + exception);
+                    }
                 }
+
+                restartScheduled = !exitOnFailure && Program.HasRestartPending(ConnectionAttempt);
+            }
+            finally
+            {
+                CompleteDisconnect(sendDisconnectPacket: false);
             }
 
-            SentrySdk.EndSession();
-            
-            if (!will_restart)
-            {
-                StopConsoleSession();
+            if (!restartScheduled)
                 Program.HandleFailure(null, false, reason);
+        }
+
+        private bool TryBeginDisconnect()
+        {
+            if (!connectionLifecycle.TryBeginDisconnect())
+                return false;
+
+            Volatile.Write(ref disconnectOwnerThreadId, Environment.CurrentManagedThreadId);
+            instance = null;
+            StopConsoleSession();
+            return true;
+        }
+
+        private void CompleteDisconnect(bool sendDisconnectPacket)
+        {
+            try
+            {
+                foreach (ChatBot bot in bots.Where(bot => bot.ScriptOwnerKey is not null).ToList())
+                {
+                    try
+                    {
+                        BotUnLoad(bot);
+                    }
+                    catch (Exception exception) when (exception is not ThreadAbortException)
+                    {
+                        Log.Warn(exception.ToString());
+                    }
+                }
+
+                botsOnHold.Clear();
+                botsOnHold.AddRange(bots.Where(bot => bot.ScriptOwnerKey is null));
+
+                if (timeoutdetector is not null)
+                {
+                    CancellationTokenSource timeoutCancellation = timeoutdetector.Item2;
+                    timeoutdetector = null;
+                    RunDisconnectCleanup(timeoutCancellation.Cancel);
+                }
+
+                if (handler is not null)
+                {
+                    if (sendDisconnectPacket)
+                        RunDisconnectCleanup(handler.Disconnect);
+                    RunDisconnectCleanup(handler.Dispose);
+                }
+
+                if (client is not null)
+                    RunDisconnectCleanup(client.Close);
+                ClearTasks();
+                RunDisconnectCleanup(() => SentrySdk.EndSession());
+            }
+            finally
+            {
+                connectionLifecycle.CompleteDisconnect();
+                Volatile.Write(ref disconnectOwnerThreadId, 0);
+                disconnectCompletion.TrySetResult(true);
+            }
+        }
+
+        private void RunDisconnectCleanup(Action cleanup)
+        {
+            try
+            {
+                cleanup();
+            }
+            catch (Exception exception) when (exception is not ThreadAbortException)
+            {
+                Log.Warn(exception.ToString());
             }
         }
 
@@ -969,19 +1055,16 @@ namespace MinecraftClient
 
         private void ConsoleReaderOnMessageReceived(object? sender, string e)
         {
-
             if (client.Client is null)
                 return;
 
             if (client.Client.Connected)
-            {
-                new Thread(() =>
-                {
-                    InvokeOnMainThread(() => HandleCommandPromptText(e));
-                }).Start();
-            }
-            else
-                return;
+                InvokeOnMainThreadAsync(() => HandleCommandPromptText(e));
+        }
+
+        internal void RouteConsoleInput(string input)
+        {
+            ConsoleReaderOnMessageReceived(this, input);
         }
 
         /// <summary>
@@ -1211,6 +1294,23 @@ namespace MinecraftClient
         }
 
         /// <summary>
+        /// Queue work for the network main thread without blocking the calling thread.
+        /// </summary>
+        internal void InvokeOnMainThreadAsync(Action task)
+        {
+            ArgumentNullException.ThrowIfNull(task);
+
+            if (!InvokeRequired)
+            {
+                task();
+                return;
+            }
+
+            lock (threadTasksLock)
+                threadTasks.Enqueue(task);
+        }
+
+        /// <summary>
         /// Clear all tasks
         /// </summary>
         public void ClearTasks()
@@ -1261,7 +1361,7 @@ namespace MinecraftClient
             bots.Add(b);
             if (init)
                 DispatchBotEvent(bot => bot.Initialize(), [b]);
-            if (handler is not null)
+            if (CanSendMessage)
                 DispatchBotEvent(bot => bot.AfterGameJoined(), [b]);
         }
 
@@ -1286,6 +1386,21 @@ namespace MinecraftClient
             foreach (var entry in botRegistrations)
             {
                 UnregisterPluginChannel(entry.Key, b);
+            }
+        }
+
+        internal void UnloadBotsByScriptOwnerKey(string scriptOwnerKey)
+        {
+            if (InvokeRequired)
+            {
+                InvokeOnMainThread(() => UnloadBotsByScriptOwnerKey(scriptOwnerKey));
+                return;
+            }
+
+            foreach (ChatBot bot in GetLoadedChatBots())
+            {
+                if (bot.ScriptOwnerKey == scriptOwnerKey)
+                    BotUnLoad(bot);
             }
         }
 
@@ -1799,6 +1914,14 @@ namespace MinecraftClient
             }
         }
 
+        public bool SendCustomClickAction(string id, Dictionary<string, object>? payload)
+        {
+            if (InvokeRequired)
+                return InvokeOnMainThread(() => SendCustomClickAction(id, payload));
+
+            return handler.SendCustomClickAction(id, payload);
+        }
+
         /// <summary>
         /// Allow to respawn after death
         /// </summary>
@@ -1891,6 +2014,72 @@ namespace MinecraftClient
             return handler.SendPluginChannelPacket(channel, data);
         }
 
+        public Item? GetHeldBook(BookHand hand = BookHand.Main)
+        {
+            if (InvokeRequired)
+                return InvokeOnMainThread(() => GetHeldBook(hand));
+
+            if (!inventoryHandlingEnabled || !inventories.TryGetValue(0, out Container? inventory))
+                return null;
+
+            int slot = hand == BookHand.Off ? 45 : 36 + CurrentSlot;
+            return inventory.Items.TryGetValue(slot, out Item? item) ? item : null;
+        }
+
+        public bool TryGetHeldBookContent(out BookContent content, BookHand hand = BookHand.Main)
+        {
+            if (InvokeRequired)
+            {
+                (bool ok, BookContent value) = InvokeOnMainThread(() =>
+                {
+                    bool ok = TryGetHeldBookContent(out BookContent value, hand);
+                    return (ok, value);
+                });
+                content = value;
+                return ok;
+            }
+
+            return BookContentHelper.TryRead(GetHeldBook(hand), out content);
+        }
+
+        public bool SendBookEdit(IReadOnlyList<string> pages, string? title = null)
+        {
+            if (InvokeRequired)
+                return InvokeOnMainThread(() => SendBookEdit(pages, title));
+
+            Item? currentBook = GetHeldBook(BookHand.Main);
+            if (!BookContentHelper.IsWritableBook(currentBook))
+                return false;
+
+            IReadOnlyList<string> normalizedPages = BookContentHelper.NormalizePages(pages);
+            bool sent = handler.SendEditBook(currentBook!, normalizedPages, title, username, CurrentSlot);
+            if (sent && GetProtocolVersion() < Protocol18Handler.MC_1_17_Version)
+                SetHeldBook(BookHand.Main, CreateLocalBookResult(currentBook!, normalizedPages, title));
+
+            return sent;
+        }
+
+        private Item CreateLocalBookResult(Item currentBook, IReadOnlyList<string> pages, string? title)
+        {
+            return title is null
+                ? BookContentHelper.CreateWritablePayload(currentBook, pages)
+                : BookContentHelper.CreateWrittenPayload(
+                    currentBook,
+                    pages,
+                    title,
+                    username,
+                    encodePagesAsJson: GetProtocolVersion() < Protocol18Handler.MC_1_9_Version);
+        }
+
+        private void SetHeldBook(BookHand hand, Item item)
+        {
+            if (!inventoryHandlingEnabled || !inventories.TryGetValue(0, out Container? inventory))
+                return;
+
+            int slot = hand == BookHand.Off ? 45 : 36 + CurrentSlot;
+            inventory.Items[slot] = item;
+        }
+
         /// <summary>
         /// Send the Entity Action packet with the Specified ID
         /// </summary>
@@ -1937,8 +2126,8 @@ namespace MinecraftClient
                 if (item.Count <= spaceLeft)
                 {
                     // Can fit into the stack
-                    item.Count = 0;
                     curItem.Count += item.Count;
+                    item.Count = 0;
 
                     changedSlots.Add(new Tuple<short, Item?>((short)curId, curItem));
                     changedSlots.Add(new Tuple<short, Item?>((short)slotId, null));
@@ -1993,6 +2182,108 @@ namespace MinecraftClient
                 (ContainerType.SmightingTable, 3) => true,
                 _ => false
             };
+        }
+
+        private static bool TryGetMirroredPlayerInventoryRange(Container inventory, out int firstWindowSlot, out int lastWindowSlot)
+        {
+            firstWindowSlot = -1;
+            lastWindowSlot = -1;
+
+            if (inventory.Type is ContainerType.PlayerInventory or ContainerType.Unknown)
+                return false;
+
+            const int mirroredPlayerInventorySlotCount = 36;
+            int slotCount = inventory.Type.SlotCount();
+            if (slotCount <= mirroredPlayerInventorySlotCount)
+                return false;
+
+            firstWindowSlot = slotCount - mirroredPlayerInventorySlotCount;
+            lastWindowSlot = slotCount - 1;
+            return true;
+        }
+
+        private static bool AreSameInventorySlot(Item? left, Item? right)
+        {
+            if (left is null || left.IsEmpty)
+                return right is null || right.IsEmpty;
+            if (right is null || right.IsEmpty)
+                return false;
+
+            return left.Type == right.Type
+                && left.Count == right.Count
+                && left.Data == right.Data
+                && ReferenceEquals(left.NBT, right.NBT)
+                && ReferenceEquals(left.Components, right.Components);
+        }
+
+        private bool SetPlayerInventorySlot(int playerInventorySlot, Item? item)
+        {
+            if (!inventories.TryGetValue(0, out Container? playerInventory))
+                return false;
+
+            if (item is null || item.IsEmpty)
+                return playerInventory.Items.Remove(playerInventorySlot);
+
+            Item itemClone = item.CloneWithCount(item.Count);
+
+            playerInventory.Items.TryGetValue(playerInventorySlot, out Item? previousItem);
+            if (AreSameInventorySlot(previousItem, itemClone))
+                return false;
+
+            playerInventory.Items[playerInventorySlot] = itemClone;
+
+            return true;
+        }
+
+        private bool SyncPlayerInventorySlotsFromWindow(Container? inventory)
+        {
+            if (inventory is null)
+                return false;
+
+            if (!inventoriesWithFullContents.Contains(inventory.ID))
+                return false;
+
+            if (!TryGetMirroredPlayerInventoryRange(inventory, out int firstWindowSlot, out int lastWindowSlot))
+                return false;
+
+            if (!inventories.TryGetValue(0, out Container? playerInventory))
+                return false;
+
+            const int firstPlayerInventorySlot = 9;
+            const int lastPlayerInventorySlot = firstPlayerInventorySlot + 36 - 1;
+            Dictionary<int, Item> mirroredItems = new();
+
+            for (int windowSlot = firstWindowSlot; windowSlot <= lastWindowSlot; windowSlot++)
+            {
+                if (!inventory.Items.TryGetValue(windowSlot, out Item? item) || item.IsEmpty)
+                    continue;
+
+                int playerInventorySlot = windowSlot - firstWindowSlot + firstPlayerInventorySlot;
+                mirroredItems[playerInventorySlot] = item.CloneWithCount(item.Count);
+            }
+
+            bool changed = false;
+            for (int playerInventorySlot = firstPlayerInventorySlot; playerInventorySlot <= lastPlayerInventorySlot; playerInventorySlot++)
+            {
+                playerInventory.Items.TryGetValue(playerInventorySlot, out Item? previousItem);
+                mirroredItems.TryGetValue(playerInventorySlot, out Item? mirroredItem);
+                if (AreSameInventorySlot(previousItem, mirroredItem))
+                    continue;
+
+                changed = true;
+                break;
+            }
+
+            if (!changed)
+                return false;
+
+            for (int playerInventorySlot = firstPlayerInventorySlot; playerInventorySlot <= lastPlayerInventorySlot; playerInventorySlot++)
+                playerInventory.Items.Remove(playerInventorySlot);
+
+            foreach ((int playerInventorySlot, Item item) in mirroredItems)
+                playerInventory.Items[playerInventorySlot] = item;
+
+            return changed;
         }
 
         /// <summary>
@@ -2059,6 +2350,10 @@ namespace MinecraftClient
                                 playerInventory.Items.Remove(-1);
                             }
 
+                            // Clean up cursor item if count reached zero
+                            if (playerInventory.Items.TryGetValue(-1, out Item? cursorAfterLeft) && cursorAfterLeft.IsEmpty)
+                                playerInventory.Items.Remove(-1);
+
                             if (inventory.Items.ContainsKey(slotId))
                                 changedSlots.Add(new Tuple<short, Item?>((short)slotId, inventory.Items[slotId]));
                             else
@@ -2115,6 +2410,10 @@ namespace MinecraftClient
                                 inventory.Items[slotId] = itemClone;
                                 playerInventory.Items[-1].Count--;
                             }
+
+                            // Clean up cursor item if count reached zero
+                            if (playerInventory.Items.TryGetValue(-1, out Item? cursorItem) && cursorItem.IsEmpty)
+                                playerInventory.Items.Remove(-1);
                         }
                         else
                         {
@@ -2700,6 +2999,11 @@ namespace MinecraftClient
                                         changedSlots.Add(new Tuple<short, Item?>((short)slotId, inventory.Items[slotId]));
                                 }
                             }
+                            if (item!.Count <= 0 && inventory.Items.ContainsKey(slotId))
+                            {
+                                inventory.Items.Remove(slotId);
+                                changedSlots.Add(new Tuple<short, Item?>((short)slotId, null));
+                            }
                         }
                         break;
                     case WindowActionType.DropItem:
@@ -2723,6 +3027,8 @@ namespace MinecraftClient
                 }
             }
 
+            SyncPlayerInventorySlotsFromWindow(inventory);
+
             return handler.SendWindowAction(windowId, slotId, action, item, changedSlots, inventories[windowId].StateID);
         }
 
@@ -2737,7 +3043,16 @@ namespace MinecraftClient
         /// <returns>TRUE if item given successfully</returns>
         public bool DoCreativeGive(int slot, ItemType itemType, int count, Dictionary<string, object>? nbt = null)
         {
-            return InvokeOnMainThread(() => handler.SendCreativeInventoryAction(slot, itemType, count, nbt));
+            return InvokeOnMainThread(() =>
+            {
+                if (!handler.SendCreativeInventoryAction(slot, itemType, count, nbt))
+                    return false;
+
+                if (slot is >= 1 and <= 45)
+                    SetPlayerInventorySlot(slot, new Item(itemType, count, nbt));
+
+                return true;
+            });
         }
 
         /// <summary>
@@ -2764,7 +3079,10 @@ namespace MinecraftClient
             if (inventories.ContainsKey(windowId))
             {
                 if (windowId != 0)
+                {
                     inventories.Remove(windowId);
+                    inventoriesWithFullContents.Remove(windowId);
+                }
                 bool result = handler.SendCloseWindow(windowId);
                 DispatchBotEvent(bot => bot.OnInventoryClose(windowId));
                 return result;
@@ -2785,6 +3103,7 @@ namespace MinecraftClient
                 return InvokeOnMainThread<bool>(ClearInventories);
 
             inventories.Clear();
+            inventoriesWithFullContents.Clear();
             inventories[0] = new Container(0, ContainerType.PlayerInventory, "Player Inventory");
             ClearUnlockedRecipes();
             return true;
@@ -2817,7 +3136,7 @@ namespace MinecraftClient
                     _ => handler.SendInteractEntity(entityID, (int)type),
                 };
             }
-            
+
             return false;
         }
 
@@ -2848,7 +3167,8 @@ namespace MinecraftClient
         /// <param name="location">Location of block to dig</param>
         /// <param name="swingArms">Also perform the "arm swing" animation</param>
         /// <param name="lookAtBlock">Also look at the block before digging</param>
-        public bool DigBlock(Location location, Direction blockFace, bool swingArms = true, bool lookAtBlock = true, double duration = 0)
+        public bool DigBlock(Location location, Direction blockFace, bool swingArms = true, bool lookAtBlock = true,
+            double duration = 0, MiningCalculator.MiningOptions? miningOptions = null)
         {
             // TODO select best face from current player location
 
@@ -2856,7 +3176,8 @@ namespace MinecraftClient
                 return false;
 
             if (InvokeRequired)
-                return InvokeOnMainThread(() => DigBlock(location, blockFace, swingArms, lookAtBlock, duration));
+                return InvokeOnMainThread(() => DigBlock(location, blockFace, swingArms, lookAtBlock, duration,
+                    miningOptions));
 
             lock (DigLock)
             {
@@ -2871,16 +3192,21 @@ namespace MinecraftClient
                     UpdateLocation(GetCurrentLocation(), location);
 
                 // Auto-compute dig duration for survival/adventure mode when not explicitly supplied
+                bool autoComputedDuration = false;
                 if (duration <= 0 && protocolversion >= Protocol18Handler.MC_1_8_Version
                     && gamemode is 0 or 2) // Survival or Adventure
                 {
-                    duration = ComputeAutoDigDuration(location);
+                    autoComputedDuration = true;
+                    duration = ComputeAutoDigDuration(location, miningOptions);
                 }
 
                 // Send dig start and dig end, will need to wait for server response to know dig result
                 // See https://wiki.vg/How_to_Write_a_Client#Digging for more details
                 bool result = handler.SendPlayerDigging(0, location, blockFace, sequenceId++)
                     && (!swingArms || DoAnimation((int)Hand.MainHand));
+
+                if (autoComputedDuration && duration <= 0)
+                    return result;
 
                 if (duration <= 0)
                     result &= handler.SendPlayerDigging(2, location, blockFace, sequenceId++);
@@ -2899,7 +3225,7 @@ namespace MinecraftClient
         /// enchantments, effects, attributes, and player state.
         /// Returns 0 for instant-break blocks.
         /// </summary>
-        private double ComputeAutoDigDuration(Location location)
+        private double ComputeAutoDigDuration(Location location, MiningCalculator.MiningOptions? miningOptions = null)
         {
             try
             {
@@ -2927,16 +3253,49 @@ namespace MinecraftClient
                     playerAttributes,
                     playerPhysics.InWater,
                     playerPhysics.OnGround,
-                    protocolversion);
+                    protocolversion,
+                    miningOptions);
 
-                if (ticks <= 0)
+                if (ticks < 0)
+                    return -1;
+
+                if (ticks == 0)
                     return 0;
 
                 return (double)ticks / Settings.ClientTicksPerSecond;
             }
             catch
             {
-                return 0;
+                return ComputeConservativeAutoDigDuration(location);
+            }
+        }
+
+        private double ComputeConservativeAutoDigDuration(Location location)
+        {
+            try
+            {
+                Block block = world.GetBlock(location);
+                if (block.Type == Material.Air)
+                    return 0;
+
+                int ticks = MiningCalculator.ComputeDigTicks(
+                    blockMaterial: block.Type,
+                    heldItem: null,
+                    helmetItem: null,
+                    effects: new(),
+                    playerAttributes: new(),
+                    isUnderwater: playerPhysics.InWater,
+                    isOnGround: playerPhysics.OnGround,
+                    protocolVersion: protocolversion);
+
+                if (ticks < 0)
+                    return -1;
+
+                return ticks == 0 ? 1.0 : (double)ticks / Settings.ClientTicksPerSecond;
+            }
+            catch
+            {
+                return 1.0;
             }
         }
 
@@ -3061,7 +3420,7 @@ namespace MinecraftClient
                 return false;
             }
         }
-        
+
         /// <summary>
         /// Send the server a command to type in the item name in the Anvil inventory when it's open.
         /// </summary>
@@ -3073,7 +3432,7 @@ namespace MinecraftClient
 
             if (inventories.Values.ToList().Last().Type != ContainerType.Anvil)
                 return false;
-            
+
             return handler.SendRenameItem(itemName);
         }
 
@@ -3165,6 +3524,36 @@ namespace MinecraftClient
             DispatchBotEvent(bot => bot.OnNetworkPacket(packetID, packetData, isLogin, isInbound));
         }
 
+        public void OnDialogRegistryData(int protocolId, string resourceId, DialogDefinition dialog)
+        {
+            Dialogs.StoreRegistryDialog(protocolId, resourceId, dialog);
+        }
+
+        public void OnDialogShown(DialogDefinition dialog, DialogPhase phase)
+        {
+            var instance = Dialogs.Show(dialog, phase);
+            if (!Tui.DialogTuiHost.TryOpen(this, instance, force: phase == DialogPhase.Configuration))
+                ConsoleIO.WriteLineFormatted(DialogFormatter.Render(instance), acceptnewlines: true);
+        }
+
+        public void OnDialogRegistryReferenceShown(int protocolId, DialogPhase phase)
+        {
+            var instance = Dialogs.ShowRegistryReference(protocolId, phase);
+            if (!Tui.DialogTuiHost.TryOpen(this, instance, force: phase == DialogPhase.Configuration))
+                ConsoleIO.WriteLineFormatted(DialogFormatter.Render(instance), acceptnewlines: true);
+        }
+
+        public void OnDialogCleared()
+        {
+            Dialogs.Clear();
+            Tui.DialogTuiHost.CloseCurrent();
+        }
+
+        public void OnServerLinksUpdated(IReadOnlyList<DialogServerLink> links)
+        {
+            Dialogs.SetServerLinks(links);
+        }
+
         /// <summary>
         /// Called when a server was successfully joined
         /// </summary>
@@ -3179,7 +3568,8 @@ namespace MinecraftClient
             if (!String.IsNullOrWhiteSpace(bandString))
                 handler.SendBrandInfo(bandString.Trim());
 
-            if (Config.MCSettings.Enabled)
+            // 1.20.2+ expects ClientInformation during configuration; older servers still want it here.
+            if (Config.MCSettings.Enabled && protocolversion < Protocol18Handler.MC_1_20_2_Version)
                 handler.SendClientSettings(
                     Config.MCSettings.Locale,
                     Config.MCSettings.RenderDistance,
@@ -3485,6 +3875,8 @@ namespace MinecraftClient
         {
             UpdateKeepAlive();
 
+            Log.Debug(string.Format(Translations.protocol_chat_raw_message, message.content));
+
             List<string> links = new();
             string messageText;
 
@@ -3496,7 +3888,7 @@ namespace MinecraftClient
                 if (!Config.Signature.ShowIllegalSignedChat && !message.isSystemChat && !(bool)message.isSignatureLegal!)
                     return;
                 messageText = ChatParser.ParseSignedChat(message, links);
-                
+
                 if (message.isSystemChat)
                 {
                     if (Config.Signature.MarkSystemMessage)
@@ -3557,6 +3949,7 @@ namespace MinecraftClient
         /// <param name="inventoryID">Inventory ID</param>
         public void OnInventoryOpen(int inventoryID, Container inventory)
         {
+            inventoriesWithFullContents.Remove(inventoryID);
             inventories[inventoryID] = inventory;
 
             if (inventoryID != 0)
@@ -3583,9 +3976,15 @@ namespace MinecraftClient
             if (inventories.ContainsKey(inventoryID))
             {
                 if (inventoryID == 0)
+                {
                     inventories[0].Items.Clear(); // Don't delete player inventory
+                    inventoriesWithFullContents.Clear();
+                }
                 else
+                {
                     inventories.Remove(inventoryID);
+                    inventoriesWithFullContents.Remove(inventoryID);
+                }
             }
 
             if (inventoryID != 0)
@@ -3711,8 +4110,16 @@ namespace MinecraftClient
         {
             if (inventories.ContainsKey(inventoryID))
             {
+                // Filter out empty items (Count=0 or Air) that some servers may send
+                foreach (int key in itemList.Where(slot => slot.Value.IsEmpty).Select(slot => slot.Key).ToList())
+                    itemList.Remove(key);
+
                 inventories[inventoryID].Items = itemList;
                 inventories[inventoryID].StateID = stateId;
+                inventoriesWithFullContents.Add(inventoryID);
+                bool playerInventoryChanged = SyncPlayerInventorySlotsFromWindow(inventories[inventoryID]);
+                if (playerInventoryChanged)
+                    DispatchBotEvent(bot => bot.OnInventoryUpdate(0));
                 DispatchBotEvent(bot => bot.OnInventoryUpdate(inventoryID));
             }
         }
@@ -3737,7 +4144,7 @@ namespace MinecraftClient
                 inventoryID = 0; // Prevent key not found for some bots relied to this event
                 if (inventories.ContainsKey(0))
                 {
-                    if (item is not null)
+                    if (item is not null && !item.IsEmpty)
                         inventories[0].Items[-1] = item;
                     else
                         inventories[0].Items.Remove(-1);
@@ -3753,6 +4160,9 @@ namespace MinecraftClient
                             inventories[inventoryID].Items.Remove(slotID);
                     }
                     else inventories[inventoryID].Items[slotID] = item;
+
+                    if (SyncPlayerInventorySlotsFromWindow(inventories[inventoryID]))
+                        DispatchBotEvent(bot => bot.OnInventoryUpdate(0));
                 }
             }
             DispatchBotEvent(bot => bot.OnInventoryUpdate(inventoryID));
@@ -3856,6 +4266,17 @@ namespace MinecraftClient
             {
                 DispatchBotEvent(bot => bot.OnPluginMessage(channel, data), registeredBotPluginChannels[channel]);
             }
+        }
+
+        public void OnBookOpen(int hand)
+        {
+            if (InvokeRequired)
+            {
+                InvokeOnMainThread(() => OnBookOpen(hand));
+                return;
+            }
+
+            Tui.BookTuiHost.OpenFromServer(this, hand == (int)BookHand.Off ? BookHand.Off : BookHand.Main);
         }
 
         /// <summary>
@@ -4548,7 +4969,7 @@ namespace MinecraftClient
                 Entity entity = entities[entityID];
                 entity.Metadata = metadata;
                 int itemEntityMetadataFieldIndex = protocolversion < Protocol18Handler.MC_1_17_Version ? 7 : 8;
-                
+
                 if (entity.Type.ContainsItem() && metadata.TryGetValue(itemEntityMetadataFieldIndex, out object? itemObj) && itemObj is not null && itemObj.GetType() == typeof(Item))
                 {
                     Item item = (Item)itemObj;
@@ -4669,6 +5090,9 @@ namespace MinecraftClient
         {
             switch (reason)
             {
+                case 3:
+                    OnGamemodeUpdate(Guid.Empty, (int)value);
+                    break;
                 case 7:
                     DispatchBotEvent(bot => bot.OnRainLevelChange(value));
                     break;

@@ -132,6 +132,7 @@ namespace MinecraftClient.Protocol.Handlers
                     byte[] keepalive = new byte[5] { 0, 0, 0, 0, 0 };
                     Receive(keepalive, 1, 4, SocketFlags.None);
                     handler.OnServerKeepAlive();
+                    handler.SetCanSendMessage(true);
                     Send(keepalive); break;
                 case 0x01: ReadData(4); ReadNextString(); ReadData(5); break;
                 case 0x02: ReadData(1); ReadNextString(); ReadNextString(); ReadData(4); break;
@@ -208,7 +209,8 @@ namespace MinecraftClient.Protocol.Handlers
                 case 0xC9:
                     string name = ReadNextString(); bool online = ReadNextByte() != 0x00; ReadData(2);
                     Guid FakeUUID = new(MD5.Create().ComputeHash(Encoding.UTF8.GetBytes(name)).Take(16).ToArray());
-                    if (online) { handler.OnPlayerJoin(new PlayerInfo(name, FakeUUID)); } else { handler.OnPlayerLeave(FakeUUID); }
+                    if (online) handler.OnPlayerJoin(new PlayerInfo(name, FakeUUID));
+                    else handler.OnPlayerLeave(FakeUUID);
                     break;
                 case 0xCA: if (protocolversion >= 72) { ReadData(9); } else ReadData(3); break;
                 case 0xCB:
@@ -262,6 +264,11 @@ namespace MinecraftClient.Protocol.Handlers
         public bool SendKnownDataPacks(List<(string, string, string)> knownDataPacks)
         {
             throw new NotImplementedException();
+        }
+
+        public bool SendCustomClickAction(string id, Dictionary<string, object>? payload)
+        {
+            return false;
         }
 
         public void Dispose()
@@ -550,7 +557,7 @@ namespace MinecraftClient.Protocol.Handlers
             if (Settings.Config.Logging.DebugMessages)
                 ConsoleIO.WriteLineFormatted("§8" + Translations.debug_crypto, acceptnewlines: true);
 
-            if (serverIDhash != "-")
+            if (serverIDhash != "-" && !string.IsNullOrWhiteSpace(sessionID))
             {
                 ConsoleIO.WriteLine(Translations.mcc_session);
                 string serverHash = CryptoHandler.GetServerHash(serverIDhash, serverPublicKey, secretKey);
@@ -816,6 +823,11 @@ namespace MinecraftClient.Protocol.Handlers
             return false; //MC 1.8-1.12.1 recipe book not supported
         }
 
+        public bool SendEditBook(Item currentBook, IReadOnlyList<string> pages, string? title, string author, int selectedHotbarSlot)
+        {
+            return false; //MC 1.4.6-1.6.4 book editing is not supported
+        }
+
         public bool SendCloseWindow(int windowId)
         {
             return false; //Currently not implemented
@@ -944,7 +956,7 @@ namespace MinecraftClient.Protocol.Handlers
         {
             return false; //Currently not implemented
         }
-        
+
         public bool SendRenameItem(string itemName)
         {
             return false;

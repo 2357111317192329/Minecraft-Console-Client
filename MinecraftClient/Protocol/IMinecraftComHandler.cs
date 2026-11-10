@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using MinecraftClient.Dialogs;
 using MinecraftClient.Inventory;
 using MinecraftClient.Logger;
 using MinecraftClient.Mapping;
@@ -47,9 +48,10 @@ namespace MinecraftClient.Protocol
         void GetCookie(string key, out byte[]? data);
         void SetCookie(string key, byte[] data);
         void DeleteCookie(string key);
+        void DeleteAllCookies();
 
         void Transfer(string newHost, int newPort);
-        
+
         /// <summary>
         /// Invoke a task on the main thread, wait for completion and retrieve return value.
         /// </summary>
@@ -92,6 +94,31 @@ namespace MinecraftClient.Protocol
         /// </summary>
         /// <param name="message">Message received</param>
         public void OnTextReceived(ChatMessage message);
+
+        /// <summary>
+        /// Called when the server synchronizes a dialog registry entry.
+        /// </summary>
+        void OnDialogRegistryData(int protocolId, string resourceId, DialogDefinition dialog);
+
+        /// <summary>
+        /// Called when the server shows a custom dialog.
+        /// </summary>
+        void OnDialogShown(DialogDefinition dialog, DialogPhase phase);
+
+        /// <summary>
+        /// Called when the server shows a custom dialog by registry protocol ID.
+        /// </summary>
+        void OnDialogRegistryReferenceShown(int protocolId, DialogPhase phase);
+
+        /// <summary>
+        /// Called when the server clears the current custom dialog.
+        /// </summary>
+        void OnDialogCleared();
+
+        /// <summary>
+        /// Called when the server sends updated server links.
+        /// </summary>
+        void OnServerLinksUpdated(IReadOnlyList<DialogServerLink> links);
 
         /// <summary>
         /// Will be called every animations of the hit and place block
@@ -223,6 +250,12 @@ namespace MinecraftClient.Protocol
         /// <param name="channel">The channel the message was sent on</param>
         /// <param name="data">The data from the channel</param>
         void OnPluginChannelMessage(string channel, byte[] data);
+
+        /// <summary>
+        /// Called when the server asks the client to open a book UI.
+        /// </summary>
+        /// <param name="hand">Book hand, 0 main hand, 1 off hand.</param>
+        void OnBookOpen(int hand);
 
         /// <summary>
         /// Called when an entity has spawned
@@ -516,7 +549,7 @@ namespace MinecraftClient.Protocol
         /// <param name="header">Header</param>
         /// <param name="footer">Footer</param>
         void OnTabListHeaderAndFooter(string header, string footer);
-        
+
         /// <summary>
         /// Called when tradeList is received from server
         /// </summary>
@@ -602,7 +635,7 @@ namespace MinecraftClient.Protocol
         /// <returns>True if packet was successfully sent</returns>
 
         bool ClickContainerButton(int windowId, int buttonId);
-        
+
         /// <summary>
         /// Send a rename item packet when the anvil inventory is open and there is an item in the first slot
         /// </summary>

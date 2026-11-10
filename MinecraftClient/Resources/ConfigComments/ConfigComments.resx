@@ -193,7 +193,7 @@ You need to enable Entity Handling to use this bot
     <value>Capped between 1 to 4</value>
   </data>
   <data name="ChatBot.AutoAttack.Cooldown_Time" xml:space="preserve">
-    <value>How long to wait between each attack. Set "Custom = false" to let MCC calculate it.</value>
+    <value>Delay between attacks. Set "Custom = false" to let MCC calculate it. When Custom = true, set Min/Max for the cooldown range. If RandomMode = true, a random value between Min and Max is used for each attack.</value>
   </data>
   <data name="ChatBot.AutoAttack.Entites_List" xml:space="preserve">
     <value>All entity types can be found here: https://mccteam.github.io/r/entity/#L15</value>
@@ -241,6 +241,12 @@ For the naming of the block, please see https://mccteam.github.io/r/block/#L15</
   </data>
   <data name="ChatBot.AutoDig.Auto_Tool_Switch" xml:space="preserve">
     <value>Automatically switch to the appropriate tool.</value>
+  </data>
+  <data name="ChatBot.AutoDig.Apply_Efficiency_Enchantments" xml:space="preserve">
+    <value>Apply Efficiency enchantment speed when AutoDig computes mining time. Disable this for strict anti-cheat compatibility.</value>
+  </data>
+  <data name="ChatBot.AutoDig.Apply_Haste_Effects" xml:space="preserve">
+    <value>Apply Haste and Conduit Power speed effects when AutoDig computes mining time. Disable this for strict anti-cheat compatibility.</value>
   </data>
   <data name="ChatBot.AutoDig.Dig_Timeout" xml:space="preserve">
     <value>Mining a block for more than "Dig_Timeout" seconds will be considered a timeout.</value>
@@ -346,13 +352,13 @@ You can use "/fish" to control the bot manually.
     <value>The delay time before joining the server. (in seconds)</value>
   </data>
   <data name="ChatBot.AutoRelog.Ignore_Kick_Message" xml:space="preserve">
-    <value>When set to true, autorelog will reconnect regardless of kick messages.</value>
+    <value>Reconnect after any server kick or login rejection. Network interruptions always trigger Auto Relog.</value>
   </data>
   <data name="ChatBot.AutoRelog.Kick_Messages" xml:space="preserve">
-    <value>If the kickout message matches any of the strings, then autorelog will be triggered.</value>
+    <value>Case-insensitive text fragments that trigger Auto Relog for server kicks and login rejections.</value>
   </data>
   <data name="ChatBot.AutoRelog.Retries" xml:space="preserve">
-    <value>Retries when failing to relog to the server. use -1 for unlimited retries.</value>
+    <value>Exact retry limit. Use 0 to disable retries or -1 for unlimited retries. The count resets after 60 seconds online.</value>
   </data>
   <data name="ChatBot.AutoRespond" xml:space="preserve">
     <value>Run commands or send messages automatically when a specified pattern is detected in chat
@@ -498,8 +504,10 @@ You need to have ChatFormat working correctly and add yourself in botowners to u
 /!\ Server admins can spoof PMs (/tellraw, /nick) so enable RemoteControl only if you trust server admins</value>
   </data>
   <data name="ChatBot.ReplayCapture" xml:space="preserve">
-    <value>Enable recording of the game (/replay start) and replay it later using the Replay Mod (https://www.replaymod.com/)
+    <value>Enable automatic recording of the game and replay it later using the Replay Mod (https://www.replaymod.com/)
+Use /replay save to create a snapshot replay file while still recording.
 Please note that due to technical limitations, the client player (you) will not be shown in the replay file
+Each MCC instance uses its own temporary replay cache so multiple clients can record from the same folder without colliding.
 /!\ You SHOULD use /replay stop or exit the program gracefully with /quit OR THE REPLAY FILE MAY GET CORRUPT!</value>
   </data>
   <data name="ChatBot.ReplayCapture.Backup_Interval" xml:space="preserve">
@@ -587,6 +595,9 @@ Custom colors are only available when using "vt100_24bit" color mode.</value>
   <data name="Console.General.Display_Input" xml:space="preserve">
     <value>You can use "Ctrl+P" to print out the current input and cursor position.</value>
   </data>
+  <data name="Console.General.Display_Chat" xml:space="preserve">
+    <value>Whether to display received chat messages in the console. This does not affect chat bots or chat log files.</value>
+  </data>
   <data name="Console.General.History_Input_Records" xml:space="preserve">
     <value>Maximum number of input history records to keep.</value>
   </data>
@@ -614,6 +625,12 @@ Want to upgrade to a newer version? See https://github.com/MCCTeam/Minecraft-Con
   </data>
   <data name="Logging.DebugMessages" xml:space="preserve">
     <value>Please enable this before submitting bug reports. Thanks!</value>
+  </data>
+  <data name="Logging.PacketDebugMessages" xml:space="preserve">
+    <value>Show low-level packet debug logs.</value>
+  </data>
+  <data name="Logging.PacketDebugExclusions" xml:space="preserve">
+    <value>Packet types to exclude from packet debug logs, e.g. ["KeepAlive", "Ping"].</value>
   </data>
   <data name="Logging.ErrorMessages" xml:space="preserve">
     <value>Show error messages.</value>
@@ -678,6 +695,18 @@ Usage examples: "/tell &lt;mybot&gt; reco Player2", "/connect &lt;serverip&gt; P
   </data>
   <data name="Main.Advanced.LoadMccTrans" xml:space="preserve">
     <value>Load translations applied to MCC when available, turn it off to use English only.</value>
+  </data>
+  <data name="Main.Advanced.load_resourcepack_translations" xml:space="preserve">
+    <value>Load translations from server resource packs and cache extracted language entries locally for faster reuse.</value>
+  </data>
+  <data name="Main.Advanced.load_forge_mod_translations" xml:space="preserve">
+    <value>Load translations from local Forge mod jars when their mod IDs are announced by the server. Disabled by default.</value>
+  </data>
+  <data name="Main.Advanced.auto_discover_forge_mod_translation_sources" xml:space="preserve">
+    <value>Also scan standard Minecraft, Prism Launcher, and CurseForge instance mod folders for translation jars when available.</value>
+  </data>
+  <data name="Main.Advanced.forge_mod_translation_path" xml:space="preserve">
+    <value>Optional path to a mods folder. When set, MCC loads Forge mod translations from this folder instead of automatic discovery.</value>
   </data>
   <data name="Main.Advanced.mc_forge" xml:space="preserve">
     <value>Use "auto", "no" or "force". Force-enabling only works for MC 1.13+.</value>
@@ -953,6 +982,9 @@ Note: This does NOT require a Bot Token, only an Application ID. Discord must be
   </data>
   <data name="Main.General.AuthlibServer" xml:space="preserve">
     <value>authlib-injector authentication server to use for Yggdrasil accounts</value>
+  </data>
+  <data name="Main.General.AuthServerUrl" xml:space="preserve">
+    <value>Authlib-injector URL to use for Yggdrasil accounts. It must use http or https and include any required path.</value>
   </data>
   <data name="AuthlibServer.Host" xml:space="preserve">
     <value>Domain name or IP address</value>

@@ -395,6 +395,24 @@ namespace MinecraftClient {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Apply Efficiency enchantment speed when AutoDig computes mining time. Disable this for strict anti-cheat compatibility..
+        /// </summary>
+        internal static string ChatBot_AutoDig_Apply_Efficiency_Enchantments {
+            get {
+                return ResourceManager.GetString("ChatBot.AutoDig.Apply_Efficiency_Enchantments", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Apply Haste and Conduit Power speed effects when AutoDig computes mining time. Disable this for strict anti-cheat compatibility..
+        /// </summary>
+        internal static string ChatBot_AutoDig_Apply_Haste_Effects {
+            get {
+                return ResourceManager.GetString("ChatBot.AutoDig.Apply_Haste_Effects", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Mining a block for more than &quot;Dig_Timeout&quot; seconds will be considered a timeout..
         /// </summary>
         internal static string ChatBot_AutoDig_Dig_Timeout {
@@ -645,7 +663,7 @@ namespace MinecraftClient {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to When set to true, autorelog will reconnect regardless of kick messages..
+        ///   Looks up a localized string similar to Reconnect after any server kick or login rejection. Network interruptions always trigger Auto Relog..
         /// </summary>
         internal static string ChatBot_AutoRelog_Ignore_Kick_Message {
             get {
@@ -654,7 +672,7 @@ namespace MinecraftClient {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to If the kickout message matches any of the strings, then autorelog will be triggered..
+        ///   Looks up a localized string similar to Case-insensitive text fragments that trigger Auto Relog for server kicks and login rejections..
         /// </summary>
         internal static string ChatBot_AutoRelog_Kick_Messages {
             get {
@@ -663,7 +681,7 @@ namespace MinecraftClient {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Retries when failing to relog to the server. use -1 for unlimited retries..
+        ///   Looks up a localized string similar to Exact retry limit. Use 0 to disable retries or -1 for unlimited retries. The count resets after 60 seconds online..
         /// </summary>
         internal static string ChatBot_AutoRelog_Retries {
             get {
@@ -1430,6 +1448,15 @@ namespace MinecraftClient {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Whether to display received chat messages in the console. This does not affect chat bots or chat log files..
+        /// </summary>
+        internal static string Console_General_Display_Chat {
+            get {
+                return ResourceManager.GetString("Console.General.Display_Chat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Maximum number of input history records to keep..
         /// </summary>
         internal static string Console_General_History_Input_Records {
@@ -1502,6 +1529,24 @@ namespace MinecraftClient {
         internal static string Logging_DebugMessages {
             get {
                 return ResourceManager.GetString("Logging.DebugMessages", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show low-level packet debug logs..
+        /// </summary>
+        internal static string Logging_PacketDebugMessages {
+            get {
+                return ResourceManager.GetString("Logging.PacketDebugMessages", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Packet types to exclude from packet debug logs, e.g. [&quot;KeepAlive&quot;, &quot;Ping&quot;]..
+        /// </summary>
+        internal static string Logging_PacketDebugExclusions {
+            get {
+                return ResourceManager.GetString("Logging.PacketDebugExclusions", resourceCulture);
             }
         }
         
@@ -1964,6 +2009,15 @@ namespace MinecraftClient {
         internal static string Main_General_AuthlibServer {
             get {
                 return ResourceManager.GetString("Main.General.AuthlibServer", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Authlib-injector URL to use for Yggdrasil accounts. It must use http or https and include any required path..
+        /// </summary>
+        internal static string Main_General_AuthServerUrl {
+            get {
+                return ResourceManager.GetString("Main.General.AuthServerUrl", resourceCulture);
             }
         }
         

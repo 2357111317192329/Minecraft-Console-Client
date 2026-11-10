@@ -240,6 +240,15 @@ namespace MinecraftClient.Tui
                 Dispatcher.UIThread.Post(() => _view?.ClearInput());
         }
 
+        public void ClearScreen()
+        {
+            if (_view == null) return;
+            if (Dispatcher.UIThread.CheckAccess())
+                _view.ClearLog();
+            else
+                Dispatcher.UIThread.Post(() => _view?.ClearLog());
+        }
+
         public void SetInputVisible(bool visible)
         {
         }
@@ -268,7 +277,8 @@ namespace MinecraftClient.Tui
             {
                 Thread.Sleep(1000);
                 Environment.Exit(0);
-            }) { Name = "TUI-Exit-Guard", IsBackground = true }.Start();
+            })
+            { Name = "TUI-Exit-Guard", IsBackground = true }.Start();
         }
 
         private volatile bool _shutdownRequested;

@@ -56,10 +56,11 @@ Feature columns mean:
 | 1.21.5-1.21.8 | `Protocol18Handler` | Yes | Yes | Yes | 1.21.7/1.21.8 reuse 1.21.6 block/entity palettes in code |
 | 1.21.9-1.21.10 | `Protocol18Handler` | Yes | Yes | Yes | Version tools prefer server data reports since 1.21.9 |
 | 1.21.11 | `Protocol18Handler` | Yes | Yes | Yes | Own entity/item/metadata palettes; blocks reuse 1.21.9 palette |
-| 26.1 | `Protocol18Handler` | Yes | Yes | Yes | Latest coded support; new Minecraft version naming scheme |
+| 26.1 | `Protocol18Handler` | Yes | Yes | Yes | New Minecraft version naming scheme |
+| 26.2 | `Protocol18Handler` | Yes | Yes | Yes | Latest coded support; own item/block/entity palettes, reuses 26.1 packet IDs and metadata serializers |
 
 Notes:
-- Declared code range is `1.4.6` to `26.1`.
+- Declared code range is `1.4.6` to `26.2`.
 - Human docs are stale in places and sometimes stop at older ranges; prefer code when docs and code disagree.
 - Movement/pathing limits called out in docs still apply: no swimming, no knockback. The `Physics/` engine adds vanilla-accurate collision and movement but some edge cases remain.
 
@@ -123,3 +124,4 @@ Read `docs/guide/ai-assisted-development.md` before starting development work on
 - Don't trust older docs over current code for supported versions or feature gates. When AGENTS.md, skills, and older docs disagree, prefer current code and current tool behavior, then update the stale source.
 - Don't hardcode user-facing strings (messages, labels, help text) directly in source code; always use `Translations.*` resources so the text can be localized.
 - Never use "—" ("em dash"), unless specifically being instructed to do so!
+- Never generate MCC config files (`.ini`) in the repo root. When `dotnet run --project MinecraftClient -- --help` is used to generate a config template, it writes `MinecraftClient.ini` to the current directory. Always run this command from a system temp directory (e.g. `mktemp -d`) or use `prepare_offline_mcc_config.sh` which already handles output routing.

@@ -25,6 +25,7 @@ namespace MinecraftClient.ChatBots
         private bool csharp;
         private Thread? thread;
         private readonly Dictionary<string, object>? localVars;
+        private readonly string? scriptOwnerKey;
 
         public Script(string filename)
         {
@@ -36,6 +37,13 @@ namespace MinecraftClient.ChatBots
         {
             owner = ownername;
             this.localVars = localVars;
+        }
+
+        internal Script(string filename, string? ownername, Dictionary<string, object>? localVars, string? scriptOwnerKey)
+            : this(filename, ownername, localVars)
+        {
+            this.scriptOwnerKey = scriptOwnerKey;
+            SetScriptOwnerKey(scriptOwnerKey);
         }
 
         private void ParseArguments(string argstr)
@@ -86,7 +94,7 @@ namespace MinecraftClient.ChatBots
         public static bool LookForScript(ref string filename)
         {
             //Automatically look in subfolders and try to add ".txt" file extension
-             char dir_slash = Path.DirectorySeparatorChar;
+            char dir_slash = Path.DirectorySeparatorChar;
             string[] files = new string[]
             {
                 filename,
@@ -149,6 +157,12 @@ namespace MinecraftClient.ChatBots
             }
         }
 
+        public override bool OnDisconnect(DisconnectReason reason, string message)
+        {
+            UnloadBot();
+            return false;
+        }
+
         public override void Update()
         {
             if (csharp) //C# compiled script
@@ -160,7 +174,7 @@ namespace MinecraftClient.ChatBots
                     {
                         try
                         {
-                            CSharpRunner.Run(this, lines, args, localVars, scriptName: file!);
+                            CSharpRunner.Run(this, lines, args, localVars, scriptName: file!, scriptOwnerKey: scriptOwnerKey);
                         }
                         catch (CSharpException e)
                         {
@@ -213,7 +227,7 @@ namespace MinecraftClient.ChatBots
                                                     .ToLower();
                                                 processedLine = string.Join("", processedLine.Split(default(string[]), StringSplitOptions.RemoveEmptyEntries));
                                                 var parts = processedLine.Contains("to") ? processedLine.Split("to") : processedLine.Split("-");
-                                                
+
                                                 if (parts.Length == 2)
                                                 {
                                                     var min = Convert.ToInt32(parts[0]);
@@ -224,10 +238,12 @@ namespace MinecraftClient.ChatBots
                                                         (min, max) = (max, min);
                                                         LogToConsole(Translations.cmd_wait_random_min_bigger);
                                                     }
-                                                    
+
                                                     ticks = new Random().Next(min, max);
-                                                } else ticks = Convert.ToInt32(instruction_line[5..]);
-                                            } else ticks = Convert.ToInt32(instruction_line[5..]);
+                                                }
+                                                else ticks = Convert.ToInt32(instruction_line[5..]);
+                                            }
+                                            else ticks = Convert.ToInt32(instruction_line[5..]);
                                         }
                                         catch { }
                                         sleepticks = ticks;

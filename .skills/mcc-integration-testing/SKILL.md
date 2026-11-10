@@ -115,6 +115,89 @@ Use this for TPS, movement-cadence, or packet-cadence work:
 
 Run them against a real server with a temp config and summarize counts from the captured logs.
 
+### 4. Structured components test
+
+Use this after touching any `StructuredComponents` code (registries, component
+parsers, subcomponents, codec helpers) to prove every component type in a
+version parses on the wire without error:
+
+```bash
+bash tools/run-structured-components-test.sh 1.21.11
+```
+
+Run a single version (fast, ~2 min) or a matrix:
+
+```bash
+for v in 1.20.6 1.21 1.21.2 1.21.5 1.21.11 26.1; do
+  bash tools/run-structured-components-test.sh "$v"
+done
+```
+
+The script gives items with every registered component via RCON `/give`, reads
+them back with `inventory player list`, and asserts no parse errors in the MCC
+log. Version-gated components (v1212+, v1215+, v12111+, v261) are tested only
+on the versions that support them. See `SC_Integration_Test_Report.md` for a
+reference run across all 6 version groups.
+
+### 6. Dialog integration test
+
+Use this after touching any dialog system code (packet handling, NBT parsing,
+models, TUI, command dispatch, the state machine in `DialogManager`, or the
+codec in `DialogNbtParser`). Tests all 5 dialog types, button actions (close,
+run_command, show_dialog), cancel/dismiss, click-label, and body content:
+
+```bash
+tools/run-dialog-test.sh 26.1
+```
+
+The script starts the server if needed, generates a temp MCC config, launches
+MCC with file-input mode (requires both `MCC_FILE_INPUT=1` and
+`MCC_INPUT_FILE=<path>` env vars), sends inline SNBT dialogs via RCON, and
+asserts 29 checks against the MCC log.
+
+Key requirements that differ from other test modes:
+
+- FileInputBot is loaded only when `MCC_FILE_INPUT=1` is set in the
+  environment. The `[ChatBot.FileInput]` config section is ignored at load
+  time.
+- The input file path is controlled by `MCC_INPUT_FILE`, *not* by the config
+  `File` setting.
+- Dialogs use inline SNBT syntax through `ResourceOrIdArgument`, e.g.:
+  `dialog show <player> {type:"minecraft:notice", title:{text:"Hello"}}`
+- The `ActionButton.CODEC` flattens `CommonButtonData` fields (`label`,
+  `tooltip`, `width`) into the same object as `action` — no `button` wrapper.
+
+### 5. Full inventory regression sweep
+
+Use this when touching inventory snapshots, player/container slot sync, creative inventory, item-slot serialization, packet palettes, game-mode updates, or block-use paths that open containers:
+
+```bash
+tools/run-inventory-full-sweep.sh --versions "1.21.10 1.21.11"
+```
+
+Default coverage includes:
+
+- player inventory listing and inventory discovery
+- creative give/delete
+- inventory search
+- player right/left click stack split and merge
+- player drop one and drop all
+- chest open via `useblock`
+- container listing and close
+- mirrored player slots in container windows
+- shift-click and shift-right-click transfer
+- container right/left click, cursor stack, drop one, and drop all
+- creative middle-click command path
+- log scan for packet parse failures, queue-empty crashes, unhandled exceptions, and disconnects
+
+The script writes `summary.tsv` under `RUN_ROOT` and per-version logs under `/tmp/mcc-debug/inventory-full-<version>/mcc-debug.log`.
+
+When a matrix has existing PASS rows, do not rerun them unless a later code change affects that row or the user asks for a full rerun. Derive remaining rows from summaries:
+
+```bash
+awk 'FNR>1 && $2=="PASS" {print $1}' /tmp/mcc-inventory-full-sweep/*/summary.tsv | sort -V | uniq
+```
+
 ## Preconditions
 
 Before running any scenario:
@@ -165,6 +248,13 @@ Optionally override the login name with the fourth argument to the config helper
   - summarize the latest full-spectrum run
 - `tools/run-creative-e2e.sh`
   - ordered creative-mode E2E regression scenario
+- `tools/run-inventory-full-sweep.sh`
+  - full inventory command/API sweep across one or more versions
+- `tools/run-structured-components-test.sh`
+  - exercises every structured component via RCON `/give` across versions 1.20.6-26.1
+- `tools/run-dialog-test.sh`
+  - dialog integration test: all 5 types, run_command/show_dialog actions,
+    cancel/dismiss/click-label, body content; 29 assertions on MCC log
 
 ## Evidence Discipline
 
@@ -224,3 +314,10 @@ Always summarize:
 - If a test assertion fails, inspect the real MCC output before changing the code or weakening the assertion.
 - If an older server behaves oddly on Linux, check `use-native-transport=false` in `server.properties`.
 - If a matrix row fails before producing `mcc.log` or a command transcript, treat it as a harness failure, fix the environment, and rerun that row before drawing product conclusions.
+- If creative inventory commands report "You must be in Creative gamemode" after RCON switched the player, inspect game-mode update parsing before assuming creative inventory is broken. Modern servers can update local game mode through game event reason `3`.
+- If an inventory row crashes with `Queue empty` or `Failed to process incoming packet`, inspect packet palette routing before changing inventory code. A single shifted packet ID can make a healthy inventory feature look broken.
+- For chest-open failures, separate product and harness causes. The player may be standing inside the chest or suffocating on older servers. Stand beside the chest, put a floor under the player, and retry `useblock`.
+- For shared local servers, a `Done` log line does not prove RCON is ready. Retry setup commands and verify the actual RCON port from `server.properties`.
+- If `tools/run-dialog-test.sh` fails with "FileInput Watching: .../mcc_input.txt" pointing to the wrong directory, the `MCC_INPUT_FILE` env var was not set in the tmux command. FileInputBot ignores the config `File` setting entirely.
+- If inline SNBT dialogs fail on the server side (`Failed to parse structure: No key ...`), check whether `ActionButton.CODEC` fields are flat (no `button` wrapper) and whether the dialog type fields match the 26.1 server (`label` not `text` in `CommonButtonData`).
+- If a dialog integration test fails on "Server showed custom dialog", the dialog packet (id=0x8C in 26.1 play phase) may not have been sent. Verify the RCON command succeeded and the server printed "Displayed dialog to ...".
