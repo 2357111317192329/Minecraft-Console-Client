@@ -452,29 +452,6 @@ namespace MinecraftClient
             if (stats != null)
                 avgSpeed = stats.AvgSpeed;
         }
-
-        public void SaveStats()
-        {
-            var stats = new QueueStats
-            {
-                AvgSpeed = avgSpeed
-            };
-
-            string json = JsonSerializer.Serialize(stats);
-            File.WriteAllText("queue_stats.json", json);
-        }
-        public void LoadStats()
-        {
-            if (!File.Exists("queue_stats.json"))
-                return;
-
-            string json = File.ReadAllText("queue_stats.json");
-
-            var stats = JsonSerializer.Deserialize<QueueStats>(json);
-
-            if (stats != null)
-                avgSpeed = stats.AvgSpeed;
-        }
         
         public void Transfer(string newHost, int newPort)
         {

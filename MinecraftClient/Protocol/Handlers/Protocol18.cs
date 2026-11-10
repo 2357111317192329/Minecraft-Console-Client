@@ -2363,11 +2363,6 @@ namespace MinecraftClient.Protocol.Handlers
                     }
 
                     break;
-                case PacketTypesIn.PlayerListHeaderAndFooter:
-                    handler.OnTabListHeaderAndFooter(
-                        dataTypes.ReadNextChat(packetData),
-                        dataTypes.ReadNextChat(packetData));
-                    break;
                 case PacketTypesIn.TabComplete:
                     var oldTransactionId = autocomplete_transaction_id;
                     if (protocolVersion >= MC_1_13_Version)
